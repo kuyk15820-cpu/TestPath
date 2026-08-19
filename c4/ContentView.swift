@@ -178,9 +178,11 @@ private struct LightCardTabBarRepresentable: UIViewControllerRepresentable {
         return tabBarController
     }
 
-    func updateUIViewController(_ uiViewController: LightTabBarController, context: Context) {
-        // Sync ตำแหน่ง Tab จาก SwiftUI -> UIKit
-        if let index = sections.firstIndex(where: { $0.rawValue == selectedTab }),
+    func updateUIViewController(_ uiViewController: CardTabBarController, context: Context) {
+    // 1. ค้นหา Index ใน Array sections ก่อน
+    if let index = sections.firstIndex(where: { $0.rawValue == selectedTab }) {
+        // 2. เช็กว่า Index ที่ได้ไม่เกินจำนวน Tab ที่มีอยู่จริงใน uiViewController
+        if index < uiViewController.viewControllers?.count ?? 0,
            uiViewController.selectedIndex != index {
             uiViewController.selectedIndex = index
         }
