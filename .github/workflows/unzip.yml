@@ -1,67 +1,161 @@
-name: Auto Unzip Any Archive
+name: build
 
 on:
   push:
-    paths:
-      - '**.zip'
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  unzip-and-clean:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+  build:
+    runs-on: macos-26
 
-      - name: Extract all zip files to Root
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: setup xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: show xcode version
+        run: xcodebuild -version
+
+      - name: install ldid
+        run: brew install ldid
+
+      - name: sync swift files to xcodeproj
         run: |
-          for f in *.zip; do
-            [ -e "$f" ] || continue
-            echo "กำลังจัดการแตกไฟล์: $f"
+          gem install xcodeproj
+          ruby -e "
+            require 'xcodeproj'
             
-            # เก็บชื่อไฟล์ดั้งเดิมแบบไม่มีนามสกุล .zip (เช่น Troll) ไว้ใช้ตรวจสอบโฟลเดอร์ย่อย
-            FOLDER_NAME="${f%.zip}"
-            
-            # แตกไฟล์ออกมาไว้ที่ root หลักตรงๆ
-            unzip -o "$f" -d ./
-            rm "$f"
-            
-            # ตรวจสอบว่าถ้าหากเกิดโฟลเดอร์ย่อยขึ้นมา (เช่นมีโฟลเดอร์ชื่อ Troll/ โผล่มาหลังแตกไฟล์)
-            if [ -d "$FOLDER_NAME" ]; then
-               echo "พบโฟลเดอร์ซ้อนชื่อ $FOLDER_NAME -> กำลังบังคับดึงไฟล์ภายในทั้งหมดออกมาที่หน้าแรก"
-               
-               # ดึงข้อมูลทุกอย่าง (รวมไฟล์ปกติและไฟล์ซ่อน) ออกมาที่หน้าแรกหลักของ Repo
-               mv "$FOLDER_NAME"/* ./ 2>/dev/null || true
-               mv "$FOLDER_NAME"/.* ./ 2>/dev/null || true
-               
-               # ลบตัวโฟลเดอร์เปล่าที่เหลือทิ้งไป
-               rm -rf "$FOLDER_NAME"
-            fi
+            project_path = Dir.glob('*.xcodeproj').first
+            unless project_path
+              puts 'No .xcodeproj found'
+              exit 1
+            end
+
+            project = Xcodeproj::Project.open(project_path)
+            target = project.targets.first
+            source_phase = target.source_build_phase
+
+            # ดึงรายชื่อไฟล์ Swift ทั้งหมดที่มีอยู่ใน Build Phase ปัจจุบันเพื่อป้องกันไฟล์ซ้ำ
+            existing_files = source_phase.files_references.compact.map(&:real_path).compact.map(&:to_s)
+
+            Dir.glob('**/*.swift').each do |swift_file|
+              next if swift_file.start_with?('Pods/', 'Build/', '.build/', 'DerivedData/')
+              
+              file_abs_path = File.expand_path(swift_file)
+              
+              # ข้ามถ้าไฟล์ถูกเพิ่มไว้ใน Build Phase อยู่แล้ว
+              if existing_files.include?(file_abs_path)
+                next
+              end
+
+              # ค้นหา reference เดิมใน Xcode project ถ้ามี
+              file_ref = project.files.find { |f| f.real_path.to_s == file_abs_path }
+              
+              # ถ้ายังไม่มี file reference ให้สร้างใหม่
+              unless file_ref
+                file_ref = project.main_group.new_file(swift_file)
+              end
+
+              # เพิ่มเข้า Compile Sources Phase
+              unless source_phase.files_references.include?(file_ref)
+                source_phase.add_file_reference(file_ref)
+                puts \"Added to project: #{swift_file}\"
+              end
+            end
+
+            project.save
+          "
+
+      - name: build
+        run: |
+          chmod +x scripts/build_ipa.sh
+          ./scripts/build_ipa.sh
+
+      - name: upload artifact (PR only)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ipa
+          path: |
+            build/*.ipa
+
+      - name: upload release ipa
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-ipa
+          path: build/*.ipa
+
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: download ipa
+        uses: actions/download-artifact@v4
+        with:
+          name: release-ipa
+          path: build/
+
+      - name: get last 12h commits
+        run: |
+          COMMITS=$(git log --since="12 hours ago" --pretty=format:"- %h %s (%an)")
+          if [ -z "$COMMITS" ]; then
+            COMMITS="no commits in the last 12 hours"
+          fi
+
+          echo "COMMITS<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: write release notes
+        run: |
+          cat <<EOF > release_notes.txt
+          Nightly build
+          
+          Last 12 hours commits:
+          
+          ${COMMITS}
+          EOF
+
+      - name: update nightly release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view nightly >/dev/null 2>&1 || \
+          gh release create nightly \
+            --title "Nightly" \
+            --notes "initial nightly" \
+            --prerelease
+      
+          gh release edit nightly \
+            --title "Nightly" \
+            --notes-file release_notes.txt \
+            --prerelease      
+          
+          for asset in $(gh release view nightly --json assets -q '.assets[].name'); do
+            echo "Deleting old asset: $asset"
+            gh release delete-asset nightly "$asset" -y || true
           done
 
-      - name: Fallback Check (For any other single nested folder)
-        run: |
-          # บล็อกสำรอง: หากชื่อโฟลเดอร์ย่อยไม่ตรงกับชื่อ zip แต่แตกมาแล้วดันมีแค่โฟลเดอร์เปล่าๆ ตัวเดียวหุ้มอยู่
-          TARGET_DIR=$(ls -d */ 2>/dev/null | grep -v -E '^(.git|.github)/$' | head -n 1)
-          NON_GIT_ITEMS=$(ls -1d */ * 2>/dev/null | grep -v -E '^(.git|.github)' | wc -l)
-          
-          if [ ! -z "$TARGET_DIR" ] && [ "$NON_GIT_ITEMS" -eq 1 ]; then
-             echo "Fallback: ตรวจพบโฟลเดอร์หุ้มชั้นนอกสุดชื่ออื่น: $TARGET_DIR -> กำลังเคลียร์ไฟล์ย่อยออกมา"
-             mv "$TARGET_DIR"* ./ 2>/dev/null || true
-             mv "$TARGET_DIR".* ./ 2>/dev/null || true
-             rm -rf "$TARGET_DIR"
-          fi
-
-      - name: Commit and Push Changes back to Repo
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "Unpack and force flatten nested zip folder contents to root"
-            git push
-          else
-            echo "ไม่มีการเปลี่ยนแปลงโครงสร้างไฟล์เพิ่มเติม"
-          fi
+          gh release upload nightly build/*.ipa --clobber
