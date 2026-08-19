@@ -87,7 +87,7 @@ class TabBarController: UITabBarController {
         anotherSmallViewBottomConstraint?.isActive = true
     }
     
-    func setTabBarHidden(_ isHidden: Bool, animated: Bool){
+    override func setTabBarHidden(_ isHidden: Bool, animated: Bool) {
         let block = {
             self.customTabBar.alpha = isHidden ? 0 : 1
             self.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: isHidden ? 0 : self.tabBarHeight, right: 0)
