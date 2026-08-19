@@ -162,24 +162,9 @@ private struct LightCardTabBarRepresentable: UIViewControllerRepresentable {
     let language: AppLanguage
     let contentBuilder: (AppSection) -> AnyView
 
-    func makeUIViewController(context: Context) -> CardTabBarController {
+    func makeUIViewController(context: Context) -> LightTabBarController {
         // สามารถเปลี่ยนเป็น LightTabBarController() หรือ SpecialTabBarController() ตามดีไซน์ที่ชอบได้
-        let tabBarController = CardTabBarController()
-        updateControllers(tabBarController, context: context)
-        return tabBarController
-    }
-
-    func updateUIViewController(_ uiViewController: CardTabBarController, context: Context) {
-        updateControllers(uiViewController, context: context)
-        
-        // Sync ตำแหน่ง Tab จาก SwiftUI -> UIKit
-        if let index = sections.firstIndex(where: { $0.rawValue == selectedTab }),
-           uiViewController.selectedIndex != index {
-            uiViewController.selectedIndex = index
-        }
-    }
-
-    private func updateControllers(_ tabBarController: CardTabBarController, context: Context) {
+        let tabBarController = LightTabBarController()
         let viewControllers = sections.map { section in
             let hostingController = UIHostingController(rootView: contentBuilder(section))
             hostingController.tabBarItem = UITabBarItem(
@@ -189,8 +174,16 @@ private struct LightCardTabBarRepresentable: UIViewControllerRepresentable {
             )
             return hostingController
         }
-        
         tabBarController.viewControllers = viewControllers
+        return tabBarController
+    }
+
+    func updateUIViewController(_ uiViewController: LightTabBarController, context: Context) {
+        // Sync ตำแหน่ง Tab จาก SwiftUI -> UIKit
+        if let index = sections.firstIndex(where: { $0.rawValue == selectedTab }),
+           uiViewController.selectedIndex != index {
+            uiViewController.selectedIndex = index
+        }
     }
 }
 
