@@ -16,11 +16,11 @@ struct ContentView: View {
         if arguments.contains("--simulate-files-tab") {
             initialTab = 1
         } else if arguments.contains("--simulate-patch-tab") {
-            initialTab = 1
+            initialTab = 2
         } else if arguments.contains("--simulate-cleaner-tab") {
-            initialTab = 2
+            initialTab = 3
         } else if arguments.contains("--simulate-wallpaper-tab") {
-            initialTab = 2
+            initialTab = 4
         } else {
             initialTab = 0
         }
@@ -117,8 +117,8 @@ struct ContentView: View {
             )
         case .patches:
             PatchProjectsView()
-        case .oneClickPatch:
-            OneClickPatchView()
+        case .quickApply:
+            QuickApplyView()
         }
     }
 
@@ -126,6 +126,13 @@ struct ContentView: View {
         Binding(
             get: { tabNavigation.selectedTab },
             set: { tabNavigation.select($0) }
+        )
+    }
+
+    private var filesTabSession: Binding<FilesTabSession> {
+        Binding(
+            get: { tabNavigation.filesTabs },
+            set: { tabNavigation.setFilesTabs($0) }
         )
     }
 
@@ -174,7 +181,7 @@ private extension AppSection {
         switch self {
         case .home: return "tab.home"
         case .patches: return "tab.patches"
-        case .oneClickPatch: return "tab.one_click_patch"
+        case .quickApply: return "Quick Apply"
         }
     }
 
@@ -182,7 +189,7 @@ private extension AppSection {
         switch self {
         case .home: return "house.fill"
         case .patches: return "shippingbox.fill"
-        case .oneClickPatch: return "wand.and.stars"
+        case .quickApply: return "bolt.shield.fill"
         }
     }
 }
