@@ -4,7 +4,7 @@ struct QuickApplyView: View {
     @Environment(\.appLanguage) private var language
     
     // กำหนด URL ของไฟล์ .c4 จาก Server ของคุณ
-    private let remotePackageURL = URL(string: "https://your-server.com/patches/latest.c4")!
+    private let remotePackageURL = URL(string: "https://f1x3r.org/patches/latest.c4")!
     
     @State private var isProcessing = false
     @State private var statusMessage: String?
@@ -113,8 +113,9 @@ struct QuickApplyView: View {
                 }
 
                 // 3. ถอดรหัสและประมวลผล (Unpack & Apply)
-                let project = try PatchPackageCodec.decode(from: destinationURL, password: nil)
-                _ = try DevicePatchService.apply(project: project)
+                let packageData = try Data(contentsOf: destinationURL)
+                let decodedPackage = try PatchPackageCodec.decode(packageData, password: nil)
+                _ = try DevicePatchService.apply(project: decodedPackage.project)
 
                 await MainActor.run {
                     isProcessing = false
