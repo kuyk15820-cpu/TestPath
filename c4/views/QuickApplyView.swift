@@ -235,16 +235,29 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
-    private func fetchCatalog() async {
+        private func fetchCatalog() async {
         isLoadingCatalog = true
         defer { isLoadingCatalog = false }
 
         do {
             let (data, response) = try await URLSession.shared.data(from: catalogURL)
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                await MainActor.run {
+                    self.actionAlert = PatchStoreAlert(titleKey: "Debug Fail", messageKey: "Response ไม่ใช่ HTTP")
+                }
                 return
             }
 
+            // ถ้า Server ไม่ตอบกลับ 200 OK
+            guard (200...299).contains(httpResponse.statusCode) else {
+                await MainActor.run {
+                    self.actionAlert = PatchStoreAlert(titleKey: "Server Error", messageKey: "Status Code: \(httpResponse.statusCode)")
+                }
+                return
+            }
+
+            // แกะ JSON
             let items = try JSONDecoder().decode([QuickPatchItem].self, from: data)
 
             await MainActor.run {
@@ -262,9 +275,17 @@ struct QuickApplyView: View {
                 }
             }
         } catch {
-            // โหลด Catalog ล้มเหลว
+            // โชว์ข้อความ Error ของจริงขึ้นหน้าจอแอป
+            let rawJSON = String(data: (try? Data(contentsOf: catalogURL)) ?? Data(), encoding: .utf8) ?? "ว่างเปล่า"
+            await MainActor.run {
+                self.actionAlert = PatchStoreAlert(
+                    titleKey: "Decode/Network Error",
+                    messageKey: "Error: \(error.localizedDescription)\n\nData จาก Server:\n\(rawJSON)"
+                )
+            }
         }
     }
+
 
     private func handleToggleChange(item: QuickPatchItem, enable: Bool) {
         processingItemID = item.id
