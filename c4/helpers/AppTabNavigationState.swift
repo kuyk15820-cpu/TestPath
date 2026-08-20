@@ -6,7 +6,6 @@ enum AppSection: Int, CaseIterable, Identifiable {
     case patches
     case cleaner
     case wallpapers
-    case quickApply
 
     var id: Int { rawValue }
 }
@@ -50,7 +49,7 @@ struct FeatureVisibility: Equatable {
             return cleanerEnabled
         case .wallpapers:
             return wallpapersEnabled && wallpapersSupported
-        case .home, .files, .patches, .quickApply:
+        case .home, .files, .patches:
             return true
         }
     }
