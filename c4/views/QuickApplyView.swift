@@ -11,53 +11,46 @@ struct QuickPatchItem: Identifiable, Codable {
 
 struct QuickApplyView: View {
     @Environment(\.appLanguage) private var language
+    @EnvironmentObject private var appState: AppState
 
-    // ⚠️ URL ของ catalog.json บน Server ของคุณ
+    // ⚠️ URL ของ catalog.json บน Server
     private let catalogURL = URL(string: "https://f1x3r.org/patches/catalog.json")!
 
     @State private var patchItems: [QuickPatchItem] = []
-    @State private var activePatches: [String: Bool] = [:] // เก็บสถานะ เปิด/ปิด สวิตช์
+    @State private var activePatches: [String: Bool] = [:]
     @State private var isLoadingCatalog = false
     @State private var processingItemID: String?
     @State private var statusMessage: String?
     @State private var actionAlert: PatchStoreAlert?
+    @State private var showSettings = false
+    @State private var showLogs = false
 
     var body: some View {
         NavigationStack {
             List {
-                if isLoadingCatalog {
-                    HStack {
-                        Spacer()
-                        ProgressView("กำลังโหลดรายการ Patch...")
-                        Spacer()
-                    }
-                    .padding(.vertical, 20)
-                } else if patchItems.isEmpty {
-                    ContentUnavailableView(
-                        "ไม่พบรายการ Patch",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("ไม่สามารถดึงข้อมูลจาก Server ได้")
-                    )
-                } else {
-                    Section {
-                        ForEach(patchItems) { item in
-                            patchRow(for: item)
-                        }
-                    } header: {
-                        Text("รายการ Patch ที่พร้อมใช้งาน")
-                    } footer: {
-                        if let statusMessage {
-                            Text(statusMessage)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.accent)
-                        }
-                    }
-                }
+                // Section 1: ข้อมูลตัวเครื่อง (ย้ายมาจาก Dashboard เดิม)
+                deviceSection
+
+                // Section 2: รายการ Patch Catalog
+                patchCatalogSection
             }
             .navigationTitle("Quick Patch")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(AppTheme.accent)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showLogs = true } label: {
+                        Image(systemName: "apple.terminal")
+                    }
+                    .accessibilityLabel(language.text("accessibility.open_logs"))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel(language.text("accessibility.open_settings"))
+                }
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { Task { await fetchCatalog() } }) {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -67,6 +60,8 @@ struct QuickApplyView: View {
             .task {
                 await fetchCatalog()
             }
+            .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showLogs) { LogView() }
             .alert(item: $actionAlert) { alert in
                 Alert(
                     title: Text(language.text(alert.titleKey)),
@@ -77,7 +72,82 @@ struct QuickApplyView: View {
         }
     }
 
-    // MARK: - Row View Builder
+    // MARK: - Device Info Section
+
+    private var deviceSection: some View {
+        Section {
+            LabeledContent(language.text("dashboard.hardware_model")) {
+                Text(AppInfo.displayMachineName)
+                    .font(.body.monospaced())
+            }
+            LabeledContent(language.text("settings.ios_version")) {
+                Text("\(AppInfo.osVersion) (\(AppInfo.osBuild))")
+                    .font(.body.monospaced())
+            }
+            HStack {
+                Text(language.text("settings.compatibility"))
+                Spacer()
+                Text(language.text(appState.isSupported ? "settings.supported" : "settings.unsupported"))
+                    .foregroundStyle(appState.isSupported ? Color.green : Color.red)
+            }
+
+            if appState.kernelExploitApplicable && AppInfo.versionTuple.major < 26 {
+                HStack {
+                    Text(language.text("dashboard.kernel_status"))
+                    Spacer()
+                    if appState.kernelExploitRunning {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text(language.text("dashboard.kernel_running"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(language.text(appState.exploitStatus.isSuccess ? "dashboard.kernel_active" : "dashboard.kernel_inactive"))
+                            .foregroundStyle(appState.exploitStatus.isSuccess ? Color.green : Color.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text(language.text("common.device"))
+        } footer: {
+            Text(language.text("settings.supported_range_summary"))
+        }
+    }
+
+    // MARK: - Patch Catalog Section
+
+    @ViewBuilder
+    private var patchCatalogSection: some View {
+        Section {
+            if isLoadingCatalog {
+                HStack {
+                    Spacer()
+                    ProgressView("กำลังโหลดรายการ Patch...")
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+            } else if patchItems.isEmpty {
+                ContentUnavailableView(
+                    "ไม่พบรายการ Patch",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("ไม่สามารถดึงข้อมูลจาก Server ได้")
+                )
+            } else {
+                ForEach(patchItems) { item in
+                    patchRow(for: item)
+                }
+            }
+        } header: {
+            Text("รายการ Patch ที่พร้อมใช้งาน")
+        } footer: {
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.accent)
+            }
+        }
+    }
 
     @ViewBuilder
     private func patchRow(for item: QuickPatchItem) -> some View {
@@ -112,7 +182,7 @@ struct QuickApplyView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - File Management Helpers
+    // MARK: - File Management & Logic
 
     private func localPatchURL(for id: String) -> URL? {
         guard let appSupportURL = try? FileManager.default.url(
@@ -150,8 +220,6 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
-    // MARK: - Logic Implementation
-
     private func fetchCatalog() async {
         isLoadingCatalog = true
         defer { isLoadingCatalog = false }
@@ -163,17 +231,16 @@ struct QuickApplyView: View {
             }
 
             let items = try JSONDecoder().decode([QuickPatchItem].self, from: data)
-            
+
             await MainActor.run {
                 self.patchItems = items
-                
-                // เช็คสถานะเริ่มต้นของสวิตช์แต่ละตัวจาก Receipt ที่เคยรันไว้
+
                 for item in items {
                     if let localURL = self.localPatchURL(for: item.id),
                        FileManager.default.fileExists(atPath: localURL.path),
                        let packageData = try? Data(contentsOf: localURL),
                        let decoded = try? PatchPackageCodec.decode(packageData, password: nil) {
-                        
+
                         let hasReceipt = DevicePatchService.latestReceipt(projectID: decoded.project.id) != nil
                         self.activePatches[item.id] = hasReceipt
                     }
@@ -194,7 +261,6 @@ struct QuickApplyView: View {
                 }
 
                 if enable {
-                    // --- 1. APPLY PATCH ---
                     if !FileManager.default.fileExists(atPath: applyURL.path) {
                         await MainActor.run {
                             self.statusMessage = "กำลังดาวน์โหลด \(item.title)..."
@@ -208,8 +274,7 @@ struct QuickApplyView: View {
 
                     let packageData = try Data(contentsOf: applyURL)
                     let decodedPackage = try PatchPackageCodec.decode(packageData, password: nil)
-                    
-                    // สั่ง Apply และสร้าง Receipt เก็บไว้
+
                     _ = try DevicePatchService.apply(project: decodedPackage.project)
 
                     await MainActor.run {
@@ -220,7 +285,6 @@ struct QuickApplyView: View {
                     }
 
                 } else {
-                    // --- 2. RESTORE PATCH (ใช้ Receipt) ---
                     await MainActor.run {
                         self.statusMessage = "กำลัง Restore ค่าเดิม..."
                     }
@@ -232,7 +296,6 @@ struct QuickApplyView: View {
                     let packageData = try Data(contentsOf: applyURL)
                     let decodedPackage = try PatchPackageCodec.decode(packageData, password: nil)
 
-                    // ดึง Receipt ล่าสุดเพื่อ Restore ค่าดั้งเดิม
                     guard let receipt = DevicePatchService.latestReceipt(projectID: decodedPackage.project.id) else {
                         throw PatchPackageError.invalidProject
                     }
@@ -261,7 +324,7 @@ struct QuickApplyView: View {
                     self.statusMessage = nil
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
-                        titleKey: "common.failed", 
+                        titleKey: "common.failed",
                         messageKey: enable ? "patch.error.apply" : "patch.error.restore"
                     )
                 }
