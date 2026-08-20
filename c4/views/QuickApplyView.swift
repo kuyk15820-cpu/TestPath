@@ -10,6 +10,18 @@ struct QuickApplyView: View {
     @State private var statusMessage: String?
     @State private var actionAlert: PatchStoreAlert?
 
+    private var localFileURL: URL? {
+        guard let appSupportURL = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) else { return nil }
+        
+        let targetDirectory = appSupportURL.appendingPathComponent(".c4", isDirectory: true)
+        return targetDirectory.appendingPathComponent("latest_downloaded.c4")
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
@@ -23,7 +35,7 @@ struct QuickApplyView: View {
                     Text("Quick Apply Patch")
                         .font(.title2.weight(.bold))
                     
-                    Text("กดปุ่มด้านล่างเพื่อดาวน์โหลดและติดตั้ง Patch ล่าสุดทันที")
+                    Text("กดปุ่มด้านล่างเพื่อติดตั้ง Patch ทันที")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -61,6 +73,9 @@ struct QuickApplyView: View {
             }
             .navigationTitle("Quick Patch")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await autoDownloadIfNeeded()
+            }
             .alert(item: $actionAlert) { alert in
                 Alert(
                     title: Text(language.text(alert.titleKey)),
@@ -73,47 +88,80 @@ struct QuickApplyView: View {
 
     // MARK: - Logic Implementation
 
+    private func downloadPatchFile() async throws -> URL {
+        guard let destinationURL = localFileURL else {
+            throw PatchPackageError.invalidProject
+        }
+        
+        let fileManager = FileManager.default
+        let targetDirectory = destinationURL.deletingLastPathComponent()
+        
+        if !fileManager.fileExists(atPath: targetDirectory.path) {
+            try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+        }
+
+        let (tempURL, response) = try await URLSession.shared.download(from: remotePackageURL)
+        
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw PatchPackageError.invalidProject
+        }
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.moveItem(at: tempURL, to: destinationURL)
+        
+        return destinationURL
+    }
+
+    private func autoDownloadIfNeeded() async {
+        guard let localURL = localFileURL else { return }
+        
+        if !FileManager.default.fileExists(atPath: localURL.path) {
+            await MainActor.run {
+                statusMessage = "กำลังเตรียมไฟล์ Patch อัตโนมัติ..."
+            }
+            
+            do {
+                _ = try await downloadPatchFile()
+                await MainActor.run {
+                    statusMessage = nil
+                }
+            } catch {
+                await MainActor.run {
+                    statusMessage = "ดาวน์โหลดไฟล์ล้มเหลว"
+                }
+            }
+        }
+    }
+
     private func processQuickApply() {
         isProcessing = true
-        statusMessage = "กำลังดาวน์โหลดไฟล์ Patch..."
 
         Task.detached(priority: .userInitiated) {
             do {
-                // 1. จัดการโฟลเดอร์ Application Support/.c4/
-                let fileManager = FileManager.default
-                let appSupportURL = try fileManager.url(
-                    for: .applicationSupportDirectory,
-                    in: .userDomainMask,
-                    appropriateFor: nil,
-                    create: true
-                )
-                
-                let targetDirectory = appSupportURL.appendingPathComponent(".c4", isDirectory: true)
-                if !fileManager.fileExists(atPath: targetDirectory.path) {
-                    try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
-                }
-
-                let destinationURL = targetDirectory.appendingPathComponent("latest_downloaded.c4")
-
-                // 2. ดาวน์โหลดไฟล์จาก Server
-                let (tempURL, response) = try await URLSession.shared.download(from: remotePackageURL)
-                
-                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                guard let localURL = await self.localFileURL else {
                     throw PatchPackageError.invalidProject
                 }
 
-                // เขียนทับไฟล์เดิมถ้ามีอยู่
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
+                let targetURL: URL
+                if FileManager.default.fileExists(atPath: localURL.path) {
+                    await MainActor.run {
+                        statusMessage = "กำลังประมวลผล Patch..."
+                    }
+                    targetURL = localURL
+                } else {
+                    await MainActor.run {
+                        statusMessage = "กำลังดาวน์โหลดไฟล์ Patch..."
+                    }
+                    targetURL = try await downloadPatchFile()
+                    await MainActor.run {
+                        statusMessage = "กำลังประมวลผล Patch..."
+                    }
                 }
-                try fileManager.moveItem(at: tempURL, to: destinationURL)
 
-                await MainActor.run {
-                    statusMessage = "กำลังประมวลผล Patch..."
-                }
-
-                // 3. ถอดรหัสและประมวลผล (Unpack & Apply)
-                let packageData = try Data(contentsOf: destinationURL)
+                // ถอดรหัสและประมวลผล (Unpack & Apply) จากไฟล์ Local
+                let packageData = try Data(contentsOf: targetURL)
                 let decodedPackage = try PatchPackageCodec.decode(packageData, password: nil)
                 _ = try DevicePatchService.apply(project: decodedPackage.project)
 
