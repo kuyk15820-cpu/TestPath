@@ -57,17 +57,19 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - LightCardTabBar Bridge
     private var compactLayout: some View {
-        LightCardTabBarRepresentable(
-            sections: featureVisibility.visibleSections,
-            selectedTab: tabSelection,
-            language: language,
-            contentBuilder: { section in
-                AnyView(sectionContent(section))
+        TabView(selection: tabSelection) {
+            ForEach(featureVisibility.visibleSections) { section in
+                sectionContent(section)
+                    .tabItem {
+                        CompactTabLabel(
+                            title: language.text(section.titleKey),
+                            systemImage: section.systemImage
+                        )
+                    }
+                    .tag(section.rawValue)
             }
-        )
-        .ignoresSafeArea()
+        }
     }
 
     private var regularLayout: some View {
@@ -95,7 +97,7 @@ struct ContentView: View {
                     )
                 }
             }
-            .navigationTitle("c4")
+            .navigationTitle("3105")
             .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
         } detail: {
             sectionContent(selectedVisibleSection)
@@ -113,10 +115,16 @@ struct ContentView: View {
                 wallpapersEnabled: $wallpapersEnabled,
                 wallpapersSupported: wallpapersSupported
             )
+        case .files:
+            AppDataBrowserView(
+                tabSession: filesTabSession
+            )
         case .patches:
             PatchProjectsView()
-        default:
-            EmptyView()
+        case .cleaner:
+            CleanerView()
+        case .wallpapers:
+            WallpaperLabView()
         }
     }
 
@@ -155,40 +163,6 @@ struct ContentView: View {
     }
 }
 
-// MARK: - LightCardTabBar Representable Wrapper
-private struct LightCardTabBarRepresentable: UIViewControllerRepresentable {
-    let sections: [AppSection]
-    @Binding var selectedTab: Int
-    let language: AppLanguage
-    let contentBuilder: (AppSection) -> AnyView
-
-    func makeUIViewController(context: Context) -> LightTabBarController {
-        // สามารถเปลี่ยนเป็น LightTabBarController() หรือ SpecialTabBarController() ตามดีไซน์ที่ชอบได้
-        let tabBarController = LightTabBarController()
-        let viewControllers = sections.map { section in
-            let hostingController = UIHostingController(rootView: contentBuilder(section))
-            hostingController.tabBarItem = UITabBarItem(
-                title: language.text(section.titleKey),
-                image: UIImage(systemName: section.systemImage),
-                tag: section.rawValue
-            )
-            return hostingController
-        }
-        tabBarController.viewControllers = viewControllers
-        return tabBarController
-    }
-
-    func updateUIViewController(_ uiViewController: LightTabBarController, context: Context) {
-        // Sync ตำแหน่ง Tab จาก SwiftUI -> UIKit
-        if let index = sections.firstIndex(where: { $0.rawValue == selectedTab }) {
-            if index < uiViewController.viewControllers?.count ?? 0,
-               uiViewController.selectedIndex != index {
-                uiViewController.selectedIndex = index
-            }
-        }
-    }
-}
-
 private struct CompactTabLabel: View {
     let title: String
     let systemImage: String
@@ -212,16 +186,20 @@ private extension AppSection {
     var titleKey: String {
         switch self {
         case .home: return "tab.home"
+        case .files: return "tab.files"
         case .patches: return "tab.patches"
-        default: return ""
+        case .cleaner: return "tab.cleaner"
+        case .wallpapers: return "tab.wallpapers"
         }
     }
 
     var systemImage: String {
         switch self {
         case .home: return "house.fill"
+        case .files: return "folder.fill"
         case .patches: return "shippingbox.fill"
-        default: return ""
+        case .cleaner: return "sparkles"
+        case .wallpapers: return "photo.on.rectangle.angled"
         }
     }
 }
