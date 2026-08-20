@@ -1,6 +1,32 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Local AppSection Enum
+// ปรับลดรายการเหลือเพียง 3 หน้า: home, patches, oneClickPatch
+private enum AppSection: Int, CaseIterable, Identifiable {
+    case home = 0
+    case patches = 1
+    case oneClickPatch = 2
+
+    var id: Int { rawValue }
+
+    var titleKey: String {
+        switch self {
+        case .home: return "tab.home"
+        case .patches: return "tab.patches"
+        case .oneClickPatch: return "Quick Patch"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .home: return "house.fill"
+        case .patches: return "shippingbox.fill"
+        case .oneClickPatch: return "bolt.fill"
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.appLanguage) private var language
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -16,11 +42,11 @@ struct ContentView: View {
         if arguments.contains("--simulate-files-tab") {
             initialTab = 1
         } else if arguments.contains("--simulate-patch-tab") {
-            initialTab = 2
+            initialTab = 1
         } else if arguments.contains("--simulate-cleaner-tab") {
-            initialTab = 3
+            initialTab = 2
         } else if arguments.contains("--simulate-wallpaper-tab") {
-            initialTab = 4
+            initialTab = 2
         } else {
             initialTab = 0
         }
@@ -59,11 +85,11 @@ struct ContentView: View {
 
     private var compactLayout: some View {
         TabView(selection: tabSelection) {
-            ForEach(featureVisibility.visibleSections) { section in
+            ForEach(AppSection.allCases) { section in
                 sectionContent(section)
                     .tabItem {
                         CompactTabLabel(
-                            title: language.text(section.titleKey),
+                            title: section == .oneClickPatch ? "Quick Patch" : language.text(section.titleKey),
                             systemImage: section.systemImage
                         )
                     }
@@ -75,16 +101,19 @@ struct ContentView: View {
     private var regularLayout: some View {
         NavigationSplitView {
             List {
-                ForEach(featureVisibility.visibleSections) { section in
+                ForEach(AppSection.allCases) { section in
                     Button {
                         withAnimation(.easeInOut(duration: 0.18)) {
                             tabNavigation.select(section.rawValue)
                         }
                     } label: {
-                        Label(language.text(section.titleKey), systemImage: section.systemImage)
-                            .fontWeight(section.rawValue == tabNavigation.selectedTab ? .semibold : .regular)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                        Label(
+                            section == .oneClickPatch ? "Quick Patch" : language.text(section.titleKey),
+                            systemImage: section.systemImage
+                        )
+                        .fontWeight(section.rawValue == tabNavigation.selectedTab ? .semibold : .regular)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(
@@ -97,7 +126,7 @@ struct ContentView: View {
                     )
                 }
             }
-            .navigationTitle("3105")
+            .navigationTitle("c4")
             .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
         } detail: {
             sectionContent(selectedVisibleSection)
@@ -115,16 +144,10 @@ struct ContentView: View {
                 wallpapersEnabled: $wallpapersEnabled,
                 wallpapersSupported: wallpapersSupported
             )
-        case .files:
-            AppDataBrowserView(
-                tabSession: filesTabSession
-            )
         case .patches:
             PatchProjectsView()
-        case .cleaner:
-            CleanerView()
-        case .wallpapers:
-            WallpaperLabView()
+        case .oneClickPatch:
+            OneClickPatchView()
         }
     }
 
@@ -132,13 +155,6 @@ struct ContentView: View {
         Binding(
             get: { tabNavigation.selectedTab },
             set: { tabNavigation.select($0) }
-        )
-    }
-
-    private var filesTabSession: Binding<FilesTabSession> {
-        Binding(
-            get: { tabNavigation.filesTabs },
-            set: { tabNavigation.setFilesTabs($0) }
         )
     }
 
@@ -155,8 +171,7 @@ struct ContentView: View {
     }
 
     private var selectedVisibleSection: AppSection {
-        guard let section = AppSection(rawValue: tabNavigation.selectedTab),
-              featureVisibility.isVisible(section) else {
+        guard let section = AppSection(rawValue: tabNavigation.selectedTab) else {
             return .home
         }
         return section
@@ -179,28 +194,6 @@ private struct CompactTabLabel: View {
                 .font(.system(size: 17, weight: .medium))
         }
         Text(title)
-    }
-}
-
-private extension AppSection {
-    var titleKey: String {
-        switch self {
-        case .home: return "tab.home"
-        case .files: return "tab.files"
-        case .patches: return "tab.patches"
-        case .cleaner: return "tab.cleaner"
-        case .wallpapers: return "tab.wallpapers"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .home: return "house.fill"
-        case .files: return "folder.fill"
-        case .patches: return "shippingbox.fill"
-        case .cleaner: return "sparkles"
-        case .wallpapers: return "photo.on.rectangle.angled"
-        }
     }
 }
 
