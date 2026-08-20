@@ -115,12 +115,16 @@ struct ContentView: View {
                 wallpapersEnabled: $wallpapersEnabled,
                 wallpapersSupported: wallpapersSupported
             )
+        case .files:
+            AppDataBrowserView(
+                tabSession: filesTabSession
+            )
         case .patches:
             PatchProjectsView()
-        case .quickApply:
-            QuickApplyView()
-        @unknown default:
-            EmptyView()
+        case .cleaner:
+            CleanerView()
+        case .wallpapers:
+            WallpaperLabView()
         }
     }
 
@@ -182,18 +186,20 @@ private extension AppSection {
     var titleKey: String {
         switch self {
         case .home: return "tab.home"
+        case .files: return "tab.files"
         case .patches: return "tab.patches"
-        case .quickApply: return "Quick Apply"
-        @unknown default: return ""
+        case .cleaner: return "tab.cleaner"
+        case .wallpapers: return "tab.wallpapers"
         }
     }
 
     var systemImage: String {
         switch self {
         case .home: return "house.fill"
+        case .files: return "folder.fill"
         case .patches: return "shippingbox.fill"
-        case .quickApply: return "bolt.shield.fill"
-        @unknown default: return "circle"
+        case .cleaner: return "sparkles"
+        case .wallpapers: return "photo.on.rectangle.angled"
         }
     }
 }
