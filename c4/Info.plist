@@ -54,6 +54,11 @@
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>16.0</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>c4 needs access to documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
