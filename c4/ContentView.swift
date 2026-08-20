@@ -119,6 +119,8 @@ struct ContentView: View {
             PatchProjectsView()
         case .quickApply:
             QuickApplyView()
+        @unknown default:
+            EmptyView()
         }
     }
 
@@ -182,6 +184,7 @@ private extension AppSection {
         case .home: return "tab.home"
         case .patches: return "tab.patches"
         case .quickApply: return "Quick Apply"
+        @unknown default: return ""
         }
     }
 
@@ -190,6 +193,7 @@ private extension AppSection {
         case .home: return "house.fill"
         case .patches: return "shippingbox.fill"
         case .quickApply: return "bolt.shield.fill"
+        @unknown default: return "circle"
         }
     }
 }
