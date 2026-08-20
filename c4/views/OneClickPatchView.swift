@@ -16,64 +16,62 @@ struct OneClickPatchView: View {
     @State private var alertMessage = ""
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
+        VStack(spacing: 24) {
+            Spacer()
+            
+            // Icon แสดงสถานะ
+            Image(systemName: isSuccess ? "checkmark.seal.fill" : "wand.and.stars")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+                .foregroundStyle(isSuccess ? .green : AppTheme.accent)
+            
+            // หัวข้อ
+            VStack(spacing: 8) {
+                Text("Quick Patch")
+                    .font(.title2.bold())
                 
-                // Icon แสดงสถานะ
-                Image(systemName: isSuccess ? "checkmark.seal.fill" : "wand.and.stars")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 80, height: 80)
-                    .foregroundStyle(isSuccess ? .green : AppTheme.accent)
-                
-                // หัวข้อ
-                VStack(spacing: 8) {
-                    Text("Quick Patch")
-                        .font(.title2.bold())
-                    
-                    Text("Auto-download and apply patch from server")
-                        .font(.caption)
+                Text("Auto-download and apply patch from server")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // แสดง Status ระหว่างทำงาน
+            if isDownloading || isApplying {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text(statusMessage ?? "")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                
-                Spacer()
-                
-                // แสดง Status ระหว่างทำงาน
-                if isDownloading || isApplying {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .controlSize(.large)
-                        Text(statusMessage ?? "")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                // ปุ่ม Action หลัก
-                Button(action: startOneClickProcess) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "bolt.fill")
-                        Text("Apply Patch Now")
-                            .bold()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(isDownloading || isApplying ? Color.gray : Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-                }
-                .disabled(isDownloading || isApplying)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
             }
-            .navigationTitle("One-Click Patch")
-            .navigationBarTitleDisplayMode(.inline)
-            .alert("Patch Result", isPresented: $showAlert) {
-                Button(language.text("common.ok"), role: .cancel) { }
-            } message: {
-                Text(alertMessage)
+            
+            // ปุ่ม Action หลัก
+            Button(action: startOneClickProcess) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.fill")
+                    Text("Apply Patch Now")
+                        .bold()
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isDownloading || isApplying ? Color.gray : Color.accentColor)
+                .foregroundColor(.white)
+                .cornerRadius(12)
             }
+            .disabled(isDownloading || isApplying)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
+        }
+        .navigationTitle("One-Click Patch")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Patch Result", isPresented: $showAlert) {
+            Button(language.text("common.ok"), role: .cancel) { }
+        } message: {
+            Text(alertMessage)
         }
     }
 
@@ -122,8 +120,8 @@ struct OneClickPatchView: View {
                     statusMessage = "Applying patch..."
                 }
                 
-                // 4. นำเข้า Package (ระบบจะอ่าน Bundle ID และ Rules ข้างในไฟล์ .c4 เอง)
-                let importedItem = try PatchProjectLibrary.importPackage(from: destinationURL)
+                // 4. นำเข้า Package ผ่าน Store ของระบบ
+                let importedItem = try PatchProjectStore.shared.importProject(from: destinationURL)
                 
                 guard let project = importedItem.project else {
                     throw NSError(
