@@ -30,13 +30,11 @@ struct QuickApplyView: View {
             // รายการ Patch Catalog
             patchCatalogSection
         }
+        .listStyle(.plain)
         .navigationTitle("c4")
         .navigationBarTitleDisplayMode(.inline)
         .tint(AppTheme.accent)
-        .refreshable {
-            await fetchCatalog()
-        }
-        // 🟢 เปลี่ยนมาใช้ UIActivityIndicatorView แบบเล็กลอยตรงกลาง
+        // UIActivityIndicatorView แบบเล็กลอยตรงกลาง
         .overlay {
             if isLoadingCatalog {
                 ActivityIndicator(isAnimating: true, style: .medium)
@@ -56,7 +54,7 @@ struct QuickApplyView: View {
                 .accessibilityLabel(language.text("accessibility.open_settings"))
             }
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { Task { await fetchCatalog() } }) {
+                Button(action: { Task { await fetchCatalog(force: true) } }) {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(processingItemID != nil || isLoadingCatalog)
@@ -126,7 +124,6 @@ struct QuickApplyView: View {
             Spacer()
 
             if isProcessingThis {
-                // 🟢 เปลี่ยนมาใช้ UIActivityIndicatorView เมื่อกดปุ่ม Toggle แล้วกำลังประมวลผล
                 ActivityIndicator(isAnimating: true, style: .medium)
                     .padding(.trailing, 8)
             } else {
@@ -189,7 +186,9 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
-    private func fetchCatalog() async {
+    private func fetchCatalog(force: Bool = false) async {
+        if !patchItems.isEmpty && !force { return }
+
         await MainActor.run { isLoadingCatalog = true }
         let startTime = Date()
 
