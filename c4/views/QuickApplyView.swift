@@ -187,6 +187,7 @@ struct QuickApplyView: View {
     }
 
     private func fetchCatalog(force: Bool = false) async {
+        // 🟢 เช็คเงื่อนไขก่อนปรับค่า isLoadingCatalog เพื่อไม่ให้ Spinner แสดงขึ้นมา
         if !patchItems.isEmpty && !force { return }
 
         await MainActor.run { isLoadingCatalog = true }
