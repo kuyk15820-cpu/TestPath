@@ -37,7 +37,7 @@ struct TargetGameView: View {
     // 🟢 กำหนด 2 แอปเป้าหมายพร้อม Bundle ID ของคุณที่นี่
     private let targetApps: [TargetGameApp] = [
         TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth"),
-        TargetGameApp(name: "GitHub", bundleID: "com.github.stormbreaker.prod")
+        TargetGameApp(name: "GitHub", bundleID: "com.github.stormbreaker.prod1")
     ]
 
     var body: some View {
@@ -46,43 +46,26 @@ struct TargetGameView: View {
                 Section {
                     ForEach(targetApps) { app in
                         NavigationLink(destination: QuickApplyView()) {
-                            HStack(spacing: 16) {
-                                // 🟢 แสดงไอคอนแอป หรือใช้ app.window.checkmark ถ้าหาไม่เจอ
+                            HStack {
+                                // 🟢 แสดงไอคอนขนาดดั้งเดิมของระบบ หรือใช้ app.window.checkmark ถ้าหาไม่เจอ
                                 if let icon = app.icon {
                                     Image(uiImage: icon)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 48, height: 48)
-                                        .cornerRadius(10)
-                                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                                 } else {
                                     Image(systemName: "app.window.checkmark")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 32, height: 32)
-                                        .padding(8)
                                         .foregroundStyle(Color.primary)
-                                        .background(Color.secondary.opacity(0.15))
-                                        .cornerRadius(10)
                                 }
 
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(app.name)
-                                        .font(.headline)
-                                    Text(app.bundleID)
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(.secondary)
-                                }
+                                // 🟢 แสดงเฉพาะชื่อแอป ใช้ระยะห่างและฟอนต์มาตรฐานดั้งเดิม
+                                Text(app.name)
                             }
-                            .padding(.vertical, 4)
                         }
                     }
                 } header: {
-                    Text("เลือกเกมที่ต้องการนำส่ง Patch")
+                    Text("เลือกเกม")
                 }
             }
-            .listStyle(.plain) // 🟢 Style .plain ตามต้องการ
-            .navigationTitle("Target Game")
+            .listStyle(.plain) // 🟢 Style .plain
+            .navigationTitle("หน้าแรก")
             .navigationBarTitleDisplayMode(.large)
         }
     }
