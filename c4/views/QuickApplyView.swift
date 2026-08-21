@@ -7,14 +7,13 @@ struct QuickPatchItem: Identifiable, Codable {
     let title: String
     let subtitle: String
     let downloadUrl: String
-    let active: Bool? // 🟢 ปรับจุดที่ 1: รองรับสถานะ เปิด/ปิด จาก Server (ถ้าไม่ส่งมาให้ถือว่าเป็น true)
+    let active: Bool?
 }
 
 struct QuickApplyView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
 
-    // ⚠️ URL ของ catalog.json บน Server
     private let catalogURL = URL(string: "https://f1x3r.org/patches/catalog.json")!
 
     @State private var patchItems: [QuickPatchItem] = []
@@ -35,12 +34,26 @@ struct QuickApplyView: View {
                 // Section 2: รายการ Patch Catalog
                 patchCatalogSection
             }
-            .navigationTitle("Quick Patch")
+            .navigationTitle("c4")
             .navigationBarTitleDisplayMode(.inline)
             .tint(AppTheme.accent)
             .refreshable {
-                // 💡 UX Tip 1: เพิ่ม Pull-to-Refresh ให้ผู้ใช้ลากลงเพื่อโหลด Catalog ใหม่ได้ง่ายขึ้น
                 await fetchCatalog()
+            }
+            // 🟢 แสดง Spinner ตรงกลางหน้าจอเมื่อ isLoadingCatalog เป็น true
+            .overlay {
+                if isLoadingCatalog {
+                    ZStack {
+                        Color.black.opacity(0.15)
+                            .ignoresSafeArea()
+                        
+                        ProgressView()
+                            .controlSize(.large)
+                            .padding(24)
+                            .background(.regularMaterial)
+                            .cornerRadius(16)
+                    }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -59,7 +72,7 @@ struct QuickApplyView: View {
                     Button(action: { Task { await fetchCatalog() } }) {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .disabled(processingItemID != nil)
+                    .disabled(processingItemID != nil || isLoadingCatalog)
                 }
             }
             .task {
@@ -125,14 +138,8 @@ struct QuickApplyView: View {
     @ViewBuilder
     private var patchCatalogSection: some View {
         Section {
-            if isLoadingCatalog {
-                HStack {
-                    Spacer()
-                    ProgressView("กำลังโหลดรายการ Patch...")
-                    Spacer()
-                }
-                .padding(.vertical, 12)
-            } else if patchItems.isEmpty {
+            // 🟢 เมื่อปรับไปใช้ Spinner กลางจอแล้ว ไม่ต้องแสดง ProgressView ใน Section นี้อีก
+            if patchItems.isEmpty && !isLoadingCatalog {
                 if #available(iOS 17.0, *) {
                     ContentUnavailableView(
                         "ไม่พบรายการ Patch",
@@ -173,7 +180,6 @@ struct QuickApplyView: View {
     private func patchRow(for item: QuickPatchItem) -> some View {
         let isApplied = activePatches[item.id] ?? false
         let isProcessingThis = processingItemID == item.id
-        // 🟢 เช็คว่ารายการนี้เปิดใช้งานบน Server หรือไม่ (ถ้าไม่มี key ให้ถือว่าเป็น true)
         let isServerActive = item.active ?? true
 
         HStack {
@@ -182,7 +188,6 @@ struct QuickApplyView: View {
                     Text(item.title)
                         .font(.headline)
                     
-                    // 💡 UX Tip 2: แสดง Badge เตือนว่า "ปิดปรับปรุง" ชัดเจน
                     if !isServerActive {
                         Text("ปิดปรับปรุง")
                             .font(.caption2.bold())
@@ -212,12 +217,10 @@ struct QuickApplyView: View {
                     }
                 ))
                 .labelsHidden()
-                // 🟢 Disable การกด Toggle ถ้า Server ตั้งเป็น false หรือระบบกำลังประมวลผลอยู่
                 .disabled(!isServerActive || processingItemID != nil)
             }
         }
         .padding(.vertical, 4)
-        // 🟢 ปรับให้แถบจางลง (Opacity 0.45) ถ้า item.active == false
         .opacity(isServerActive ? 1.0 : 0.45)
     }
 
@@ -263,8 +266,23 @@ struct QuickApplyView: View {
     }
 
     private func fetchCatalog() async {
-        isLoadingCatalog = true
-        defer { isLoadingCatalog = false }
+        await MainActor.run { isLoadingCatalog = true }
+        let startTime = Date()
+
+        defer {
+            // 🟢 กำหนดให้แสดง UI Loading ค้างไว้อย่างน้อย 1 วินาที (1,000,000,000 nanoseconds)
+            let elapsedTime = Date().timeIntervalSince(startTime)
+            let minDuration: TimeInterval = 1.0
+            if elapsedTime < minDuration {
+                let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
+                Task {
+                    try? await Task.sleep(nanoseconds: remainingTime)
+                    await MainActor.run { isLoadingCatalog = false }
+                }
+            } else {
+                Task { @MainActor in isLoadingCatalog = false }
+            }
+        }
 
         do {
             var request = URLRequest(url: catalogURL)
