@@ -31,31 +31,28 @@ struct ContentView: View {
     }
 
     var body: some View {
-        Group {
-            if horizontalSizeClass == .regular {
-                regularLayout
-            } else {
-                compactLayout
+        // 🟢 แสดงผล QuickApplyView หน้าเดียวทันทีโดยไม่ผ่าน TabView
+        QuickApplyView()
+            .tint(AppTheme.accent)
+            .imageScale(.small)
+            .onChange(of: patchDraftCoordinator.request?.id) { requestID in
+                if requestID != nil { tabNavigation.select(AppSection.patches.rawValue) }
             }
-        }
-        .tint(AppTheme.accent)
-        .imageScale(.small)
-        .onChange(of: patchDraftCoordinator.request?.id) { requestID in
-            if requestID != nil { tabNavigation.select(AppSection.patches.rawValue) }
-        }
-        .onChange(of: patchDraftCoordinator.importRequest?.id) { requestID in
-            if requestID != nil { tabNavigation.select(AppSection.patches.rawValue) }
-        }
-        .onChange(of: cleanerEnabled) { _ in
-            tabNavigation.reconcileSelection(with: featureVisibility)
-        }
-        .onChange(of: wallpapersEnabled) { _ in
-            tabNavigation.reconcileSelection(with: featureVisibility)
-        }
-        .onAppear {
-            tabNavigation.reconcileSelection(with: featureVisibility)
-        }
+            .onChange(of: patchDraftCoordinator.importRequest?.id) { requestID in
+                if requestID != nil { tabNavigation.select(AppSection.patches.rawValue) }
+            }
+            .onChange(of: cleanerEnabled) { _ in
+                tabNavigation.reconcileSelection(with: featureVisibility)
+            }
+            .onChange(of: wallpapersEnabled) { _ in
+                tabNavigation.reconcileSelection(with: featureVisibility)
+            }
+            .onAppear {
+                tabNavigation.reconcileSelection(with: featureVisibility)
+            }
     }
+
+    // MARK: - Legacy Structure (เก็บไว้ป้องกัน Build Error จากไฟล์อื่น)
 
     private var compactLayout: some View {
         TabView(selection: tabSelection) {
