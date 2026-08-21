@@ -20,18 +20,24 @@ struct QuickApplyView: View {
     @State private var activePatches: [String: Bool] = [:]
     @State private var isLoadingCatalog = false
     @State private var processingItemID: String?
+    @State private var isRestoringAll = false
     @State private var statusMessage: String?
     @State private var actionAlert: PatchStoreAlert?
     @State private var showSettings = false
     @State private var showLogs = false
 
     var body: some View {
-        List {
-            if !isLoadingCatalog {
-                patchCatalogSection
+        VStack(spacing: 0) {
+            List {
+                if !isLoadingCatalog {
+                    patchCatalogSection
+                }
             }
+            .listStyle(.plain)
+            
+            // 🟢 ปุ่ม Restore All ด้านล่าง สไตล์ Capsule ขอบขาว พื้นหลัง Clear
+            restoreBottomButton
         }
-        .listStyle(.plain)
         .navigationTitle("c4")
         .navigationBarTitleDisplayMode(.large)
         .tint(AppTheme.accent)
@@ -52,12 +58,6 @@ struct QuickApplyView: View {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityLabel(language.text("accessibility.open_settings"))
-            }
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { Task { await fetchCatalog(force: true) } }) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(processingItemID != nil || isLoadingCatalog)
             }
         }
         .task {
@@ -99,46 +99,89 @@ struct QuickApplyView: View {
         let isProcessingThis = processingItemID == item.id
         let isServerActive = item.active ?? true
 
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(item.title)
-                        .font(.headline)
-                    
-                    if !isServerActive {
-                        Text("ปิดปรับปรุง")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red.opacity(0.15))
-                            .foregroundStyle(.red)
-                            .clipShape(Capsule())
+        Button {
+            if isServerActive && processingItemID == nil && !isRestoringAll {
+                handleToggleChange(item: item, enable: !isApplied)
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(item.title)
+                            .font(.headline)
+                            .foregroundStyle(Color.primary)
+                        
+                        if !isServerActive {
+                            Text("ปิดปรับปรุง")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.red.opacity(0.15))
+                                .foregroundStyle(.red)
+                                .clipShape(Capsule())
+                        }
                     }
+
+                    Text(item.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
-                Text(item.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+                Spacer()
 
-            Spacer()
-
-            if isProcessingThis {
-                ActivityIndicator(isAnimating: true, style: .medium)
-                    .padding(.trailing, 8)
-            } else {
-                Toggle("", isOn: Binding(
-                    get: { isApplied },
-                    set: { newValue in
-                        handleToggleChange(item: item, enable: newValue)
-                    }
-                ))
-                .labelsHidden()
-                .disabled(!isServerActive || processingItemID != nil)
+                if isProcessingThis {
+                    ActivityIndicator(isAnimating: true, style: .medium)
+                        .padding(.trailing, 8)
+                } else if isApplied {
+                    // 🟢 ไอคอน SF Checkmark แสดงเมื่อมีการ Apply Patch แล้ว
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(AppTheme.accent)
+                } else {
+                    Image(systemName: "circle")
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 4)
+        .disabled(!isServerActive || processingItemID != nil || isRestoringAll)
         .opacity(isServerActive ? 1.0 : 0.45)
+    }
+
+    // MARK: - Bottom Restore Button
+
+    private var restoreBottomButton: some View {
+        VStack {
+            Button {
+                restoreAllPatches()
+            } label: {
+                HStack(spacing: 8) {
+                    if isRestoringAll {
+                        ActivityIndicator(isAnimating: true, style: .medium)
+                    } else {
+                        Image(systemName: "arrow.counterclockwise.circle")
+                            .font(.headline)
+                    }
+                    Text(isRestoringAll ? "กำลัง Restore..." : "Restore ค่าเดิมทั้งหมด")
+                        .font(.headline)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.clear)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white, lineWidth: 1.5)
+                )
+                .clipShape(Capsule())
+            }
+            .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
     }
 
     // MARK: - File Management & Logic
@@ -192,7 +235,6 @@ struct QuickApplyView: View {
         await MainActor.run { isLoadingCatalog = true }
         let startTime = Date()
 
-        // 🟢 ย้ายคำสั่งการปรับสถานะ isLoadingCatalog และการคำนวณเวลามารวมไว้ใน helper
         let finishLoading = { @MainActor in
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
@@ -322,6 +364,41 @@ struct QuickApplyView: View {
                         messageKey: enable ? "patch.error.apply" : "patch.error.restore"
                     )
                 }
+            }
+        }
+    }
+
+    private func restoreAllPatches() {
+        isRestoringAll = true
+        statusMessage = "กำลัง Restore ค่าเดิมทั้งหมด..."
+
+        Task.detached(priority: .userInitiated) {
+            var restoredCount = 0
+
+            for item in await self.patchItems {
+                guard let applyURL = await self.localPatchURL(for: item.id),
+                      FileManager.default.fileExists(atPath: applyURL.path),
+                      let packageData = try? Data(contentsOf: applyURL),
+                      let decodedPackage = try? PatchPackageCodec.decode(packageData, password: nil),
+                      let receipt = DevicePatchService.latestReceipt(projectID: decodedPackage.project.id) else {
+                    continue
+                }
+
+                if (try? DevicePatchService.restore(receipt: receipt)) != nil {
+                    restoredCount += 1
+                    await MainActor.run {
+                        self.activePatches[item.id] = false
+                    }
+                }
+            }
+
+            await MainActor.run {
+                self.isRestoringAll = false
+                self.statusMessage = nil
+                self.actionAlert = PatchStoreAlert(
+                    titleKey: "common.done",
+                    messageKey: restoredCount > 0 ? "patch.restored_message" : "common.ok"
+                )
             }
         }
     }
