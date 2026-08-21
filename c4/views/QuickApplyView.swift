@@ -53,13 +53,13 @@ struct QuickApplyView: View {
                 Button { showLogs = true } label: {
                     Image(systemName: "apple.terminal")
                 }
-                .accessibilityLabel(language.text("accessibility.open_logs"))
+                .accessibilityLabel("เปิดบันทึกประวัติ (Logs)")
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showSettings = true } label: {
                     Image(systemName: "gearshape")
                 }
-                .accessibilityLabel(language.text("accessibility.open_settings"))
+                .accessibilityLabel("เปิดการตั้งค่า")
             }
         }
         .task {
@@ -69,9 +69,9 @@ struct QuickApplyView: View {
         .sheet(isPresented: $showLogs) { LogView() }
         .alert(item: $actionAlert) { alert in
             Alert(
-                title: Text(language.text(alert.titleKey)),
+                title: Text(alert.titleKey == "common.done" ? "สำเร็จ" : (alert.titleKey == "common.failed" ? "ล้มเหลว" : alert.titleKey)),
                 message: Text(alert.message(language: language)),
-                dismissButton: .default(Text(language.text("common.ok")))
+                dismissButton: .default(Text("ตกลง"))
             )
         }
     }
@@ -170,7 +170,7 @@ struct QuickApplyView: View {
                             Image(systemName: "arrow.counterclockwise.circle")
                                 .font(.headline)
                         }
-                        Text(isRestoringAll ? "Restore..." : "Restore ค่าเดิม")
+                        Text(isRestoringAll ? "กำลังคืนค่า..." : "Restore ค่าเดิม")
                             .font(.subheadline.bold())
                             .lineLimit(1)
                     }
@@ -193,7 +193,7 @@ struct QuickApplyView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "gamecontroller.fill")
                             .font(.headline)
-                        Text("Open Game")
+                        Text("เปิดเกม")
                             .font(.subheadline.bold())
                             .lineLimit(1)
                     }
@@ -220,7 +220,7 @@ struct QuickApplyView: View {
         if let gameURL = URL(string: "freefireth://"), UIApplication.shared.canOpenURL(gameURL) {
             UIApplication.shared.open(gameURL)
         } else {
-            actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "ไม่พบแอปพลิเคชันเกมในเครื่อง")
+            actionAlert = PatchStoreAlert(titleKey: "ล้มเหลว", messageKey: "ไม่พบแอปพลิเคชันเกมในเครื่อง")
         }
     }
 
@@ -355,7 +355,7 @@ struct QuickApplyView: View {
                         self.activePatches[item.id] = true
                         self.statusMessage = nil
                         self.processingItemID = nil
-                        self.actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.applied_message")
+                        self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "นำเงื่อนไข Patch ทั้งหมดไปใช้งาน และสำรองไฟล์ต้นฉบับเรียบร้อยแล้ว")
                     }
 
                 } else {
@@ -380,7 +380,7 @@ struct QuickApplyView: View {
                         self.activePatches[item.id] = false
                         self.statusMessage = nil
                         self.processingItemID = nil
-                        self.actionAlert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.restored_message")
+                        self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว")
                     }
                 }
             } catch let error as PatchPackageError {
@@ -388,7 +388,7 @@ struct QuickApplyView: View {
                     self.statusMessage = nil
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
-                        titleKey: "common.failed",
+                        titleKey: "ล้มเหลว",
                         messageKey: error.localizationKey,
                         messageArgument: error.localizationArgument
                     )
@@ -398,8 +398,8 @@ struct QuickApplyView: View {
                     self.statusMessage = nil
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
-                        titleKey: "common.failed",
-                        messageKey: enable ? "patch.error.apply" : "patch.error.restore"
+                        titleKey: "ล้มเหลว",
+                        messageKey: enable ? "ไม่สามารถใช้งาน Patch ได้ ระบบได้ทำการยกเลิกการเขียนไฟล์ก่อนหน้าทั้งหมดแล้ว" : "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้อย่างปลอดภัย ไม่มีเป้าหมายที่ไม่ได้รับการยืนยันถูกเขียนทับ"
                     )
                 }
             }
@@ -434,8 +434,8 @@ struct QuickApplyView: View {
                 self.isRestoringAll = false
                 self.statusMessage = nil
                 self.actionAlert = PatchStoreAlert(
-                    titleKey: "common.done",
-                    messageKey: restoredCount > 0 ? "patch.restored_message" : "common.ok"
+                    titleKey: "สำเร็จ",
+                    messageKey: restoredCount > 0 ? "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว" : "ตกลง"
                 )
             }
         }
