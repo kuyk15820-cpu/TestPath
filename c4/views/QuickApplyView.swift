@@ -26,15 +26,19 @@ struct QuickApplyView: View {
     @State private var showLogs = false
 
     var body: some View {
-        List {
-            // รายการ Patch Catalog
-            patchCatalogSection
+        Group {
+            // 🟢 รอให้ดาวน์โหลดเสร็จก่อนจึงค่อยแสดง Table และ Header
+            if !isLoadingCatalog {
+                List {
+                    patchCatalogSection
+                }
+                .listStyle(.plain)
+            }
         }
-        .listStyle(.plain)
         .navigationTitle("c4")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large) // 🟢 ปรับเป็น Large Title Style
         .tint(AppTheme.accent)
-        // UIActivityIndicatorView แบบเล็กลอยตรงกลาง
+        // 🟢 แสดง UIActivityIndicatorView ลอยตรงกลางช่วงที่กำลังโหลด
         .overlay {
             if isLoadingCatalog {
                 ActivityIndicator(isAnimating: true, style: .medium)
@@ -187,7 +191,6 @@ struct QuickApplyView: View {
     }
 
     private func fetchCatalog(force: Bool = false) async {
-        // 🟢 เช็คเงื่อนไขก่อนปรับค่า isLoadingCatalog เพื่อไม่ให้ Spinner แสดงขึ้นมา
         if !patchItems.isEmpty && !force { return }
 
         await MainActor.run { isLoadingCatalog = true }
