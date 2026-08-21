@@ -9,6 +9,7 @@ struct ActivityIndicator: UIViewRepresentable {
     func makeUIView(context: Context) -> UIActivityIndicatorView {
         let indicator = UIActivityIndicatorView(style: style)
         indicator.hidesWhenStopped = true
+        indicator.color = .white // 🟢 ปรับสี Spinner เป็นสีขาว
         return indicator
     }
 
