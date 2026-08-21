@@ -26,67 +26,66 @@ struct QuickApplyView: View {
     @State private var showLogs = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                // Section 1: ข้อมูลตัวเครื่อง
-                deviceSection
+        // 🟢 เอา NavigationStack ออก เพื่อรองรับการกดมาจาก TargetGameView
+        List {
+            // Section 1: ข้อมูลตัวเครื่อง
+            deviceSection
 
-                // Section 2: รายการ Patch Catalog
-                patchCatalogSection
-            }
-            .navigationTitle("c4")
-            .navigationBarTitleDisplayMode(.inline)
-            .tint(AppTheme.accent)
-            .refreshable {
-                await fetchCatalog()
-            }
-            // 🟢 แสดง Spinner ตรงกลางหน้าจอเมื่อ isLoadingCatalog เป็น true
-            .overlay {
-                if isLoadingCatalog {
-                    ZStack {
-                        Color.black.opacity(0.15)
-                            .ignoresSafeArea()
-                        
-                        ProgressView()
-                            .controlSize(.large)
-                            .padding(24)
-                            .background(.regularMaterial)
-                            .cornerRadius(16)
-                    }
+            // Section 2: รายการ Patch Catalog
+            patchCatalogSection
+        }
+        .navigationTitle("c4")
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(AppTheme.accent)
+        .refreshable {
+            await fetchCatalog()
+        }
+        // แสดง Spinner ตรงกลางหน้าจอเมื่อ isLoadingCatalog เป็น true
+        .overlay {
+            if isLoadingCatalog {
+                ZStack {
+                    Color.black.opacity(0.15)
+                        .ignoresSafeArea()
+                    
+                    ProgressView()
+                        .controlSize(.large)
+                        .padding(24)
+                        .background(.regularMaterial)
+                        .cornerRadius(16)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showLogs = true } label: {
-                        Image(systemName: "apple.terminal")
-                    }
-                    .accessibilityLabel(language.text("accessibility.open_logs"))
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showLogs = true } label: {
+                    Image(systemName: "apple.terminal")
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel(language.text("accessibility.open_settings"))
+                .accessibilityLabel(language.text("accessibility.open_logs"))
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape")
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { Task { await fetchCatalog() } }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(processingItemID != nil || isLoadingCatalog)
+                .accessibilityLabel(language.text("accessibility.open_settings"))
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { Task { await fetchCatalog() } }) {
+                    Image(systemName: "arrow.clockwise")
                 }
+                .disabled(processingItemID != nil || isLoadingCatalog)
             }
-            .task {
-                await fetchCatalog()
-            }
-            .sheet(isPresented: $showSettings) { SettingsView() }
-            .sheet(isPresented: $showLogs) { LogView() }
-            .alert(item: $actionAlert) { alert in
-                Alert(
-                    title: Text(language.text(alert.titleKey)),
-                    message: Text(alert.message(language: language)),
-                    dismissButton: .default(Text(language.text("common.ok")))
-                )
-            }
+        }
+        .task {
+            await fetchCatalog()
+        }
+        .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showLogs) { LogView() }
+        .alert(item: $actionAlert) { alert in
+            Alert(
+                title: Text(language.text(alert.titleKey)),
+                message: Text(alert.message(language: language)),
+                dismissButton: .default(Text(language.text("common.ok")))
+            )
         }
     }
 
@@ -138,7 +137,6 @@ struct QuickApplyView: View {
     @ViewBuilder
     private var patchCatalogSection: some View {
         Section {
-            // 🟢 เมื่อปรับไปใช้ Spinner กลางจอแล้ว ไม่ต้องแสดง ProgressView ใน Section นี้อีก
             if patchItems.isEmpty && !isLoadingCatalog {
                 if #available(iOS 17.0, *) {
                     ContentUnavailableView(
@@ -250,7 +248,12 @@ struct QuickApplyView: View {
             try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
         }
 
-        var request = URLRequest(url: remoteURL)
+        // ปิด Local Cache เพื่อบังคับให้โหลดไฟล์เวอร์ชันล่าสุดจาก Server
+        var request = URLRequest(
+            url: remoteURL,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 30
+        )
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
 
         let (tempURL, response) = try await URLSession.shared.download(for: request)
@@ -270,7 +273,7 @@ struct QuickApplyView: View {
         let startTime = Date()
 
         defer {
-            // 🟢 กำหนดให้แสดง UI Loading ค้างไว้อย่างน้อย 1 วินาที (1,000,000,000 nanoseconds)
+            // ล็อกการแสดงผลของ Spinner ให้แสดงค้างอย่างน้อย 1 วินาที
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
             if elapsedTime < minDuration {
@@ -285,7 +288,11 @@ struct QuickApplyView: View {
         }
 
         do {
-            var request = URLRequest(url: catalogURL)
+            var request = URLRequest(
+                url: catalogURL,
+                cachePolicy: .reloadIgnoringLocalCacheData,
+                timeoutInterval: 15
+            )
             request.httpMethod = "GET"
             request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
 
@@ -326,12 +333,11 @@ struct QuickApplyView: View {
                 }
 
                 if enable {
-                    if !FileManager.default.fileExists(atPath: applyURL.path) {
-                        await MainActor.run {
-                            self.statusMessage = "กำลังดาวน์โหลด \(item.title)..."
-                        }
-                        try await self.downloadFile(from: item.downloadUrl, to: applyURL)
+                    // ดาวน์โหลดไฟล์ใหม่จาก Server เสมอ เพื่อเขียนทับไฟล์เก่าก่อนทำการ Apply
+                    await MainActor.run {
+                        self.statusMessage = "กำลังดาวน์โหลด \(item.title) ล่าสุด..."
                     }
+                    try await self.downloadFile(from: item.downloadUrl, to: applyURL)
 
                     await MainActor.run {
                         self.statusMessage = "กำลังติดตั้ง \(item.title)..."
