@@ -26,12 +26,8 @@ struct QuickApplyView: View {
     @State private var showLogs = false
 
     var body: some View {
-        // 🟢 เอา NavigationStack ออก เพื่อรองรับการกดมาจาก TargetGameView
         List {
-            // Section 1: ข้อมูลตัวเครื่อง
-            deviceSection
-
-            // Section 2: รายการ Patch Catalog
+            // รายการ Patch Catalog
             patchCatalogSection
         }
         .navigationTitle("c4")
@@ -40,19 +36,11 @@ struct QuickApplyView: View {
         .refreshable {
             await fetchCatalog()
         }
-        // แสดง Spinner ตรงกลางหน้าจอเมื่อ isLoadingCatalog เป็น true
+        // 🟢 แสดง Spinner แบบเล็ก เรียบง่าย ไม่มีกรอบหรือสีพื้นหลัง
         .overlay {
             if isLoadingCatalog {
-                ZStack {
-                    Color.black.opacity(0.15)
-                        .ignoresSafeArea()
-                    
-                    ProgressView()
-                        .controlSize(.large)
-                        .padding(24)
-                        .background(.regularMaterial)
-                        .cornerRadius(16)
-                }
+                ProgressView()
+                    .controlSize(.small)
             }
         }
         .toolbar {
@@ -89,82 +77,17 @@ struct QuickApplyView: View {
         }
     }
 
-    // MARK: - Device Info Section
-
-    private var deviceSection: some View {
-        Section {
-            LabeledContent(language.text("dashboard.hardware_model")) {
-                Text(AppInfo.displayMachineName)
-                    .font(.body.monospaced())
-            }
-            LabeledContent(language.text("settings.ios_version")) {
-                Text("\(AppInfo.osVersion) (\(AppInfo.osBuild))")
-                    .font(.body.monospaced())
-            }
-            HStack {
-                Text(language.text("settings.compatibility"))
-                Spacer()
-                Text(language.text(appState.isSupported ? "settings.supported" : "settings.unsupported"))
-                    .foregroundStyle(appState.isSupported ? Color.green : Color.red)
-            }
-
-            if appState.kernelExploitApplicable && AppInfo.versionTuple.major < 26 {
-                HStack {
-                    Text(language.text("dashboard.kernel_status"))
-                    Spacer()
-                    if appState.kernelExploitRunning {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text(language.text("dashboard.kernel_running"))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Text(language.text(appState.exploitStatus.isSuccess ? "dashboard.kernel_active" : "dashboard.kernel_inactive"))
-                            .foregroundStyle(appState.exploitStatus.isSuccess ? Color.green : Color.secondary)
-                    }
-                }
-            }
-        } header: {
-            Text(language.text("common.device"))
-        } footer: {
-            Text(language.text("settings.supported_range_summary"))
-        }
-    }
-
     // MARK: - Patch Catalog Section
 
     @ViewBuilder
     private var patchCatalogSection: some View {
         Section {
-            if patchItems.isEmpty && !isLoadingCatalog {
-                if #available(iOS 17.0, *) {
-                    ContentUnavailableView(
-                        "ไม่พบรายการ Patch",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("ไม่สามารถดึงข้อมูลจาก Server ได้")
-                    )
-                } else {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 36))
-                            .foregroundColor(.gray)
-                        Text("ไม่พบรายการ Patch")
-                            .font(.headline)
-                        Text("ไม่สามารถดึงข้อมูลจาก Server ได้")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                }
-            } else {
-                ForEach(patchItems) { item in
-                    patchRow(for: item)
-                }
+            ForEach(patchItems) { item in
+                patchRow(for: item)
             }
         } header: {
-            Text("รายการ Patch ที่พร้อมใช้งาน")
+            // 🟢 แสดงจำนวน Patch ที่พร้อมใช้งานใน Header
+            Text("รายการ Patch ที่พร้อมใช้งาน (\(patchItems.count))")
         } footer: {
             if let statusMessage {
                 Text(statusMessage)
@@ -206,6 +129,7 @@ struct QuickApplyView: View {
 
             if isProcessingThis {
                 ProgressView()
+                    .controlSize(.small)
                     .padding(.trailing, 8)
             } else {
                 Toggle("", isOn: Binding(
