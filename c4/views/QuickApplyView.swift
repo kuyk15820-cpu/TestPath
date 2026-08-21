@@ -35,8 +35,10 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            // 🟢 ปุ่มด้านล่าง (Open Game & Restore All) สไตล์ Capsule ขอบขาว
-            bottomActionButtons
+            // 🟢 แสดงปุ่มเฉพาะเมื่อมีรายการ Patch (> 0)
+            if !patchItems.isEmpty {
+                bottomActionButtons
+            }
         }
         .navigationTitle("c4")
         .navigationBarTitleDisplayMode(.large)
@@ -129,7 +131,6 @@ struct QuickApplyView: View {
 
                 Spacer()
 
-                // 🟢 ล็อคตำแหน่ง Spinner และ Icon SF ให้อยู่จุดเดียวกันพอดีด้วย ZStack Frame
                 ZStack {
                     if isProcessingThis {
                         ActivityIndicator(isAnimating: true, style: .medium)
@@ -158,7 +159,7 @@ struct QuickApplyView: View {
     private var bottomActionButtons: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
-                // 🟢 ปุ่ม Restore All (ทรง Capsule ขอบขาว)
+                // 🟢 ปุ่ม Restore All
                 Button {
                     restoreAllPatches()
                 } label: {
@@ -185,7 +186,7 @@ struct QuickApplyView: View {
                 }
                 .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
 
-                // 🟢 ปุ่ม Open Game (สไตล์ UI แบบเดียวกัน)
+                // 🟢 ปุ่ม Open Game
                 Button {
                     openGame()
                 } label: {
@@ -216,7 +217,6 @@ struct QuickApplyView: View {
     // MARK: - File Management & Logic
 
     private func openGame() {
-        // เปลี่ยน URL Scheme หรือ Bundle ID ให้ตรงตามต้องการ
         if let gameURL = URL(string: "freefireth://"), UIApplication.shared.canOpenURL(gameURL) {
             UIApplication.shared.open(gameURL)
         } else {
