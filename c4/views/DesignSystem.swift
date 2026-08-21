@@ -1,13 +1,8 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 1.00, green: 0.64, blue: 0.42, alpha: 1.00)
-                : UIColor(red: 0.85, green: 0.42, blue: 0.20, alpha: 1.00)
-        }
-    )
+    // 🟢 เปลี่ยนมาใช้ UIColor.label (ดำใน Light Mode / ขาวใน Dark Mode)
+    static let accent = Color(uiColor: .label)
     static let pageBackground = Color(uiColor: .systemBackground)
     static let consoleBackground = Color(uiColor: .secondarySystemBackground)
     static let pageInset: CGFloat = 16
@@ -96,7 +91,7 @@ struct AppLogo: View {
             } else {
                 Image(systemName: "slider.horizontal.3")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(AppTheme.accent)
             }
