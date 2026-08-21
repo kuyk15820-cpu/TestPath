@@ -26,19 +26,16 @@ struct QuickApplyView: View {
     @State private var showLogs = false
 
     var body: some View {
-        Group {
-            // 🟢 รอให้ดาวน์โหลดเสร็จก่อนจึงค่อยแสดง Table และ Header
+        List {
+            // 🟢 เช็คเงื่อนไขภายใน List แทนการครอบตัว List เพื่อป้องกัน Layout Shift และ Infinite Loop
             if !isLoadingCatalog {
-                List {
-                    patchCatalogSection
-                }
-                .listStyle(.plain)
+                patchCatalogSection
             }
         }
+        .listStyle(.plain)
         .navigationTitle("c4")
-        .navigationBarTitleDisplayMode(.large) // 🟢 ปรับเป็น Large Title Style
+        .navigationBarTitleDisplayMode(.large)
         .tint(AppTheme.accent)
-        // 🟢 แสดง UIActivityIndicatorView ลอยตรงกลางช่วงที่กำลังโหลด
         .overlay {
             if isLoadingCatalog {
                 ActivityIndicator(isAnimating: true, style: .medium)
@@ -199,15 +196,13 @@ struct QuickApplyView: View {
         defer {
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
+            
+            // 🟢 ปรับลดการสร้าง Task ซ้ำซ้อน เพื่อป้องกัน Race Condition ใน Main Thread
             if elapsedTime < minDuration {
                 let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
-                Task {
-                    try? await Task.sleep(nanoseconds: remainingTime)
-                    await MainActor.run { isLoadingCatalog = false }
-                }
-            } else {
-                Task { @MainActor in isLoadingCatalog = false }
+                try? await Task.sleep(nanoseconds: remainingTime)
             }
+            await MainActor.run { isLoadingCatalog = false }
         }
 
         do {
