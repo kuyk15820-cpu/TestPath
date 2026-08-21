@@ -36,11 +36,10 @@ struct QuickApplyView: View {
         .refreshable {
             await fetchCatalog()
         }
-        // 🟢 แสดง Spinner แบบเล็ก เรียบง่าย ไม่มีกรอบหรือสีพื้นหลัง
+        // 🟢 เปลี่ยนมาใช้ UIActivityIndicatorView แบบเล็กลอยตรงกลาง
         .overlay {
             if isLoadingCatalog {
-                ProgressView()
-                    .controlSize(.small)
+                ActivityIndicator(isAnimating: true, style: .medium)
             }
         }
         .toolbar {
@@ -86,7 +85,6 @@ struct QuickApplyView: View {
                 patchRow(for: item)
             }
         } header: {
-            // 🟢 แสดงจำนวน Patch ที่พร้อมใช้งานใน Header
             Text("รายการ Patch ที่พร้อมใช้งาน (\(patchItems.count))")
         } footer: {
             if let statusMessage {
@@ -128,8 +126,8 @@ struct QuickApplyView: View {
             Spacer()
 
             if isProcessingThis {
-                ProgressView()
-                    .controlSize(.small)
+                // 🟢 เปลี่ยนมาใช้ UIActivityIndicatorView เมื่อกดปุ่ม Toggle แล้วกำลังประมวลผล
+                ActivityIndicator(isAnimating: true, style: .medium)
                     .padding(.trailing, 8)
             } else {
                 Toggle("", isOn: Binding(
@@ -172,7 +170,6 @@ struct QuickApplyView: View {
             try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
         }
 
-        // ปิด Local Cache เพื่อบังคับให้โหลดไฟล์เวอร์ชันล่าสุดจาก Server
         var request = URLRequest(
             url: remoteURL,
             cachePolicy: .reloadIgnoringLocalCacheData,
@@ -197,7 +194,6 @@ struct QuickApplyView: View {
         let startTime = Date()
 
         defer {
-            // ล็อกการแสดงผลของ Spinner ให้แสดงค้างอย่างน้อย 1 วินาที
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
             if elapsedTime < minDuration {
@@ -257,7 +253,6 @@ struct QuickApplyView: View {
                 }
 
                 if enable {
-                    // ดาวน์โหลดไฟล์ใหม่จาก Server เสมอ เพื่อเขียนทับไฟล์เก่าก่อนทำการ Apply
                     await MainActor.run {
                         self.statusMessage = "กำลังดาวน์โหลด \(item.title) ล่าสุด..."
                     }
