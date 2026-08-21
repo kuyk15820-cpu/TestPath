@@ -30,9 +30,9 @@ struct ContentView: View {
 #endif
     }
 
-    var body: some View {
-        // 🟢 แสดงผล QuickApplyView หน้าเดียวทันทีโดยไม่ผ่าน TabView
-        QuickApplyView()
+        var body: some View {
+        // 🟢 เปลี่ยนจาก QuickApplyView() เป็น TargetGameView() หน้าใหม่แทน
+        TargetGameView()
             .tint(AppTheme.accent)
             .imageScale(.small)
             .onChange(of: patchDraftCoordinator.request?.id) { requestID in
