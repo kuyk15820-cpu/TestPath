@@ -35,8 +35,8 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            // 🟢 ปุ่ม Restore All ด้านล่าง สไตล์ Capsule ขอบขาว พื้นหลัง Clear
-            restoreBottomButton
+            // 🟢 ปุ่มด้านล่าง (Open Game & Restore All) สไตล์ Capsule ขอบขาว
+            bottomActionButtons
         }
         .navigationTitle("c4")
         .navigationBarTitleDisplayMode(.large)
@@ -129,19 +129,21 @@ struct QuickApplyView: View {
 
                 Spacer()
 
-                if isProcessingThis {
-                    ActivityIndicator(isAnimating: true, style: .medium)
-                        .padding(.trailing, 8)
-                } else if isApplied {
-                    // 🟢 ไอคอน SF Checkmark แสดงเมื่อมีการ Apply Patch แล้ว
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(AppTheme.accent)
-                } else {
-                    Image(systemName: "circle")
-                        .font(.title2)
-                        .foregroundStyle(.tertiary)
+                // 🟢 ล็อคตำแหน่ง Spinner และ Icon SF ให้อยู่จุดเดียวกันพอดีด้วย ZStack Frame
+                ZStack {
+                    if isProcessingThis {
+                        ActivityIndicator(isAnimating: true, style: .medium)
+                    } else if isApplied {
+                        Image(systemName: "checkmark.circle")
+                            .font(.title2)
+                            .foregroundStyle(AppTheme.accent)
+                    } else {
+                        Image(systemName: "circle")
+                            .font(.title2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .frame(width: 28, height: 28, alignment: .center)
             }
             .contentShape(Rectangle())
         }
@@ -151,40 +153,76 @@ struct QuickApplyView: View {
         .opacity(isServerActive ? 1.0 : 0.45)
     }
 
-    // MARK: - Bottom Restore Button
+    // MARK: - Bottom Action Buttons
 
-    private var restoreBottomButton: some View {
-        VStack {
-            Button {
-                restoreAllPatches()
-            } label: {
-                HStack(spacing: 8) {
-                    if isRestoringAll {
-                        ActivityIndicator(isAnimating: true, style: .medium)
-                    } else {
-                        Image(systemName: "arrow.counterclockwise.circle")
-                            .font(.headline)
+    private var bottomActionButtons: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                // 🟢 ปุ่ม Restore All (ทรง Capsule ขอบขาว)
+                Button {
+                    restoreAllPatches()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isRestoringAll {
+                            ActivityIndicator(isAnimating: true, style: .medium)
+                        } else {
+                            Image(systemName: "arrow.counterclockwise.circle")
+                                .font(.headline)
+                        }
+                        Text(isRestoringAll ? "Restore..." : "Restore ค่าเดิม")
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
                     }
-                    Text(isRestoringAll ? "กำลัง Restore..." : "Restore ค่าเดิมทั้งหมด")
-                        .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.clear)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white, lineWidth: 1.5)
+                    )
+                    .clipShape(Capsule())
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.clear)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white, lineWidth: 1.5)
-                )
-                .clipShape(Capsule())
+                .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
+
+                // 🟢 ปุ่ม Open Game (สไตล์ UI แบบเดียวกัน)
+                Button {
+                    openGame()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.headline)
+                        Text("Open Game")
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.clear)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white, lineWidth: 1.5)
+                    )
+                    .clipShape(Capsule())
+                }
+                .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
             }
-            .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
     }
 
     // MARK: - File Management & Logic
+
+    private func openGame() {
+        // เปลี่ยน URL Scheme หรือ Bundle ID ให้ตรงตามต้องการ
+        if let gameURL = URL(string: "freefireth://"), UIApplication.shared.canOpenURL(gameURL) {
+            UIApplication.shared.open(gameURL)
+        } else {
+            actionAlert = PatchStoreAlert(titleKey: "common.failed", messageKey: "ไม่พบแอปพลิเคชันเกมในเครื่อง")
+        }
+    }
 
     private func localPatchURL(for id: String) -> URL? {
         guard let appSupportURL = try? FileManager.default.url(
