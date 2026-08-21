@@ -7,6 +7,7 @@ struct QuickPatchItem: Identifiable, Codable {
     let title: String
     let subtitle: String
     let downloadUrl: String
+    let active: Bool? // 🟢 ปรับจุดที่ 1: รองรับสถานะ เปิด/ปิด จาก Server (ถ้าไม่ส่งมาให้ถือว่าเป็น true)
 }
 
 struct QuickApplyView: View {
@@ -28,7 +29,7 @@ struct QuickApplyView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Section 1: ข้อมูลตัวเครื่อง (ย้ายมาจาก Dashboard เดิม)
+                // Section 1: ข้อมูลตัวเครื่อง
                 deviceSection
 
                 // Section 2: รายการ Patch Catalog
@@ -37,6 +38,10 @@ struct QuickApplyView: View {
             .navigationTitle("Quick Patch")
             .navigationBarTitleDisplayMode(.inline)
             .tint(AppTheme.accent)
+            .refreshable {
+                // 💡 UX Tip 1: เพิ่ม Pull-to-Refresh ให้ผู้ใช้ลากลงเพื่อโหลด Catalog ใหม่ได้ง่ายขึ้น
+                await fetchCatalog()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showLogs = true } label: {
@@ -168,11 +173,27 @@ struct QuickApplyView: View {
     private func patchRow(for item: QuickPatchItem) -> some View {
         let isApplied = activePatches[item.id] ?? false
         let isProcessingThis = processingItemID == item.id
+        // 🟢 เช็คว่ารายการนี้เปิดใช้งานบน Server หรือไม่ (ถ้าไม่มี key ให้ถือว่าเป็น true)
+        let isServerActive = item.active ?? true
 
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .font(.headline)
+                    
+                    // 💡 UX Tip 2: แสดง Badge เตือนว่า "ปิดปรับปรุง" ชัดเจน
+                    if !isServerActive {
+                        Text("ปิดปรับปรุง")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red.opacity(0.15))
+                            .foregroundStyle(.red)
+                            .clipShape(Capsule())
+                    }
+                }
+
                 Text(item.subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -191,10 +212,13 @@ struct QuickApplyView: View {
                     }
                 ))
                 .labelsHidden()
-                .disabled(processingItemID != nil)
+                // 🟢 Disable การกด Toggle ถ้า Server ตั้งเป็น false หรือระบบกำลังประมวลผลอยู่
+                .disabled(!isServerActive || processingItemID != nil)
             }
         }
         .padding(.vertical, 4)
+        // 🟢 ปรับให้แถบจางลง (Opacity 0.45) ถ้า item.active == false
+        .opacity(isServerActive ? 1.0 : 0.45)
     }
 
     // MARK: - File Management & Logic
@@ -223,7 +247,10 @@ struct QuickApplyView: View {
             try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
         }
 
-        let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
+        var request = URLRequest(url: remoteURL)
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+
+        let (tempURL, response) = try await URLSession.shared.download(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw PatchPackageError.invalidProject
@@ -235,29 +262,21 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
-        private func fetchCatalog() async {
+    private func fetchCatalog() async {
         isLoadingCatalog = true
         defer { isLoadingCatalog = false }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: catalogURL)
+            var request = URLRequest(url: catalogURL)
+            request.httpMethod = "GET"
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse else {
-                await MainActor.run {
-                    self.actionAlert = PatchStoreAlert(titleKey: "Debug Fail", messageKey: "Response ไม่ใช่ HTTP")
-                }
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
                 return
             }
 
-            // ถ้า Server ไม่ตอบกลับ 200 OK
-            guard (200...299).contains(httpResponse.statusCode) else {
-                await MainActor.run {
-                    self.actionAlert = PatchStoreAlert(titleKey: "Server Error", messageKey: "Status Code: \(httpResponse.statusCode)")
-                }
-                return
-            }
-
-            // แกะ JSON
             let items = try JSONDecoder().decode([QuickPatchItem].self, from: data)
 
             await MainActor.run {
@@ -275,17 +294,9 @@ struct QuickApplyView: View {
                 }
             }
         } catch {
-            // โชว์ข้อความ Error ของจริงขึ้นหน้าจอแอป
-            let rawJSON = String(data: (try? Data(contentsOf: catalogURL)) ?? Data(), encoding: .utf8) ?? "ว่างเปล่า"
-            await MainActor.run {
-                self.actionAlert = PatchStoreAlert(
-                    titleKey: "Decode/Network Error",
-                    messageKey: "Error: \(error.localizedDescription)\n\nData จาก Server:\n\(rawJSON)"
-                )
-            }
+            // โหลด Catalog ล้มเหลว
         }
     }
-
 
     private func handleToggleChange(item: QuickPatchItem, enable: Bool) {
         processingItemID = item.id
