@@ -27,7 +27,6 @@ struct QuickApplyView: View {
 
     var body: some View {
         List {
-            // 🟢 เช็คเงื่อนไขภายใน List แทนการครอบตัว List เพื่อป้องกัน Layout Shift และ Infinite Loop
             if !isLoadingCatalog {
                 patchCatalogSection
             }
@@ -193,16 +192,20 @@ struct QuickApplyView: View {
         await MainActor.run { isLoadingCatalog = true }
         let startTime = Date()
 
-        defer {
+        // 🟢 ย้ายคำสั่งการปรับสถานะ isLoadingCatalog และการคำนวณเวลามารวมไว้ใน helper
+        let finishLoading = { @MainActor in
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
             
-            // 🟢 ปรับลดการสร้าง Task ซ้ำซ้อน เพื่อป้องกัน Race Condition ใน Main Thread
             if elapsedTime < minDuration {
                 let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: remainingTime)
+                Task {
+                    try? await Task.sleep(nanoseconds: remainingTime)
+                    await MainActor.run { self.isLoadingCatalog = false }
+                }
+            } else {
+                self.isLoadingCatalog = false
             }
-            await MainActor.run { isLoadingCatalog = false }
         }
 
         do {
@@ -217,6 +220,7 @@ struct QuickApplyView: View {
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                await finishLoading()
                 return
             }
 
@@ -236,8 +240,10 @@ struct QuickApplyView: View {
                     }
                 }
             }
+            
+            await finishLoading()
         } catch {
-            // โหลด Catalog ล้มเหลว
+            await finishLoading()
         }
     }
 
