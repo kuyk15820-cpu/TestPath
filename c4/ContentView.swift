@@ -115,7 +115,7 @@ struct ContentView: View {
             PatchProjectsView()
         case .quickApply:
             // 🟢 แก้ไข Error: ส่งค่า selectedApp ให้ QuickApplyView
-            QuickApplyView(selectedApp: TargetGameApp())
+QuickApplyView(selectedApp: TargetGameApp(name: "Sample App", bundleID: "com.example.app"))
         default:
             EmptyView()
         }
