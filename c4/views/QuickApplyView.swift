@@ -220,7 +220,6 @@ struct QuickApplyView: View {
 
     // MARK: - File Management & Logic
 
-    // 🟢 เปลี่ยนระบบการเปิดแอปมาใช้ LSApplicationWorkspace ผ่าน AppLauncher
     private func openGame() {
         let success = AppLauncher.launchApp(bundleID: selectedApp.bundleID)
         if !success {
@@ -277,7 +276,8 @@ struct QuickApplyView: View {
         await MainActor.run { isLoadingCatalog = true }
         let startTime = Date()
 
-        let finishLoading = { @MainActor in
+        // 🟢 แก้ไข: ใช้ @MainActor กับ closure อย่างถูกต้อง
+        let finishLoading: @MainActor () -> Void = {
             let elapsedTime = Date().timeIntervalSince(startTime)
             let minDuration: TimeInterval = 1.0
             
@@ -285,7 +285,7 @@ struct QuickApplyView: View {
                 let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
                 Task {
                     try? await Task.sleep(nanoseconds: remainingTime)
-                    await MainActor.run { self.isLoadingCatalog = false }
+                    self.isLoadingCatalog = false
                 }
             } else {
                 self.isLoadingCatalog = false
@@ -304,7 +304,7 @@ struct QuickApplyView: View {
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                await finishLoading()
+                await MainActor.run { finishLoading() }
                 return
             }
 
@@ -325,9 +325,11 @@ struct QuickApplyView: View {
                 }
             }
             
-            await finishLoading()
+            // 🟢 แก้ไข: ลบ await ออก
+            await MainActor.run { finishLoading() }
         } catch {
-            await finishLoading()
+            // 🟢 แก้ไข: ลบ await ออก
+            await MainActor.run { finishLoading() }
         }
     }
 
@@ -439,7 +441,7 @@ struct QuickApplyView: View {
         statusMessage = "กำลัง Restore ค่าเดิมทั้งหมด..."
 
         Task.detached(priority: .userInitiated) {
-            var restoredCount = 0
+            var count = 0
 
             for item in await self.patchItems {
                 guard let applyURL = await self.localPatchURL(for: item.id),
@@ -451,19 +453,21 @@ struct QuickApplyView: View {
                 }
 
                 if (try? DevicePatchService.restore(receipt: receipt)) != nil {
-                    restoredCount += 1
+                    count += 1
                     await MainActor.run {
                         self.activePatches[item.id] = false
                     }
                 }
             }
 
+            // 🟢 แก้ไข: ใช้ค่า count ภายในขอบเขต Concurrent ป้องกัน Concurrency Warning
+            let finalCount = count
             await MainActor.run {
                 self.isRestoringAll = false
                 self.statusMessage = nil
                 self.actionAlert = PatchStoreAlert(
                     titleKey: "สำเร็จ",
-                    messageKey: restoredCount > 0 ? "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว" : "ตกลง"
+                    messageKey: finalCount > 0 ? "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว" : "ตกลง"
                 )
             }
         }
