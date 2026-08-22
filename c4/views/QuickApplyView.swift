@@ -10,10 +10,10 @@ struct QuickPatchItem: Identifiable, Codable {
     let active: Bool?
 }
 
-// MARK: - View
+// MARK: - QuickApplyView
 
 struct QuickApplyView: View {
-    let selectedApp: TargetGameApp // 🟢 รับค่าแอปที่เลือกส่งมาจากหน้า TargetGameView
+    let selectedApp: TargetGameApp // 🟢 รับค่าแอปที่ถูกเลือกส่งมาจากหน้า TargetGameView
 
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
@@ -39,11 +39,12 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
+            // 🟢 แสดงปุ่มเฉพาะเมื่อมีรายการ Patch (> 0)
             if !patchItems.isEmpty {
                 bottomActionButtons
             }
         }
-        .navigationTitle(selectedApp.name) // 🟢 แสดงชื่อแอปบน Navigation Title
+        .navigationTitle(selectedApp.name) // 🟢 แสดงชื่อแอปตามที่เลือก
         .navigationBarTitleDisplayMode(.large)
         .tint(AppTheme.accent)
         .overlay {
@@ -162,6 +163,7 @@ struct QuickApplyView: View {
     private var bottomActionButtons: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
+                // 🟢 ปุ่ม Restore All
                 Button {
                     restoreAllPatches()
                 } label: {
@@ -188,7 +190,7 @@ struct QuickApplyView: View {
                 }
                 .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
 
-                // 🟢 ปุ่มเปิดเกมตาม Bundle ID ของแอปที่เลือก
+                // 🟢 ปุ่ม Open Game (แสดงชื่อตามแอปที่เลือก)
                 Button {
                     openGame()
                 } label: {
@@ -218,7 +220,7 @@ struct QuickApplyView: View {
 
     // MARK: - File Management & Logic
 
-    // 🟢 เปิดแอปเป้าหมายด้วย Bundle ID
+    // 🟢 เปลี่ยนระบบการเปิดแอปมาใช้ LSApplicationWorkspace ผ่าน AppLauncher
     private func openGame() {
         let success = AppLauncher.launchApp(bundleID: selectedApp.bundleID)
         if !success {
@@ -329,6 +331,8 @@ struct QuickApplyView: View {
         }
     }
 
+    // MARK: - Error Message Translator
+
     private func translatePatchError(_ error: PatchPackageError) -> String {
         switch error.localizationKey {
         case "patch.error.invalid_project":
@@ -340,11 +344,13 @@ struct QuickApplyView: View {
         case "patch.error.duplicate_target":
             return "มีเงื่อนไข (Rules) ซ้ำซ้อนที่ชี้ไปที่ไฟล์แอปเดียวกัน"
         case "patch.error.invalid_bundle":
-            return "โปรดระบุ App Bundle Identifier ที่ถูกต้อง"
+            return "โปรดระบุ App Bundle Identifier ที่ถูกต้อง ไม่ใช่ Container UUID"
         case "patch.error.password_or_corrupt":
             return "รหัสผ่านไม่ถูกต้อง หรือไฟล์ Package ถูกดัดแปลง/เสียหาย"
         case "patch.error.restore":
-            return "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้อย่างปลอดภัย"
+            return "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้อย่างปลอดภัย ไม่มีเป้าหมายที่ไม่ได้รับการยืนยันถูกเขียนทับ"
+        case "patch.error.size_limit":
+            return "ไฟล์ Package หรือไฟล์ที่นำมาแทนที่ มีขนาดเกินขีดจำกัดที่รองรับ"
         default:
             return error.localizationKey
         }
@@ -421,7 +427,7 @@ struct QuickApplyView: View {
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
-                        messageKey: enable ? "ไม่สามารถใช้งาน Patch ได้" : "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้"
+                        messageKey: enable ? "ไม่สามารถใช้งาน Patch ได้ ระบบได้ทำการยกเลิกการเขียนไฟล์ก่อนหน้าทั้งหมดแล้ว" : "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้อย่างปลอดภัย ไม่มีเป้าหมายที่ไม่ได้รับการยืนยันถูกเขียนทับ"
                     )
                 }
             }
