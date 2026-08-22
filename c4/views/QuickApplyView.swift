@@ -256,7 +256,6 @@ struct QuickApplyView: View {
             isLoadingCatalog = true 
             HUDHelper.show(message: "กำลังโหลดข้อมูล...")
         }
-        let startTime = Date()
 
         do {
             var request = URLRequest(
@@ -291,13 +290,7 @@ struct QuickApplyView: View {
             print("Fetch catalog failed: \(error)")
         }
 
-        let elapsedTime = Date().timeIntervalSince(startTime)
-        let minDuration: TimeInterval = 1.0
-        if elapsedTime < minDuration {
-            let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: remainingTime)
-        }
-
+        // ยกเลิกการคำนวณเวลามือในจุดนี้ โดยให้ HUDHelper จัดการระยะเวลาขั้นต่ำ 1 วินาทีให้อัตโนมัติ
         await MainActor.run {
             self.isLoadingCatalog = false
             HUDHelper.hide()
