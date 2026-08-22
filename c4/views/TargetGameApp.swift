@@ -6,20 +6,39 @@ struct TargetGameApp: Identifiable, Hashable {
     let rawName: String?
     let bundleID: String
 
-    // 🟢 ตรวจสอบสถานะการติดตั้งแบบ Dynamic ทุกครั้งที่มีการเรียกใช้
+    // 🟢 เช็กสถานะติดตั้งแบบเจาะลึกผ่าน LSApplicationProxy
     var isInstalled: Bool {
-        // เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอปจริงในเครื่อง ไอคอนจะคืนค่า nil
-        return UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
+        guard let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
+              let proxy = proxyClass.perform(Selector(("applicationProxyForIdentifier:")), with: bundleID)?.takeUnretainedValue() as? NSObject else {
+            return false
+        }
+        
+        // 1. เช็กว่าแอปถูกระบุว่าติดตั้งอยู่หรือไม่
+        let isInstalledNum = proxy.perform(Selector(("isInstalled")))?.takeUnretainedValue() as? NSNumber
+        let installedState = isInstalledNum?.boolValue ?? false
+        
+        if !installedState { return false }
+
+        // 2. เช็กซ้ำว่าแอปไม่ใช่อยู่ในสถานะ Placeholder (แอปกำลังดาวน์โหลด/โดนลบไปแล้ว)
+        if let isPlaceholder = proxy.perform(Selector(("isPlaceholder")))?.takeUnretainedValue() as? NSNumber,
+           isPlaceholder.boolValue == true {
+            return false
+        }
+
+        // 3. เช็กว่ามี Path สำหรับเข้าถึงไฟล์ของแอปนั้นจริงๆ ในระบบหรือไม่
+        let hasBundleURL = proxy.perform(Selector(("bundleURL")))?.takeUnretainedValue() != nil
+        
+        return hasBundleURL
     }
 
-    // 🟢 แสดงชื่อแอปแบบ Dynamic: ถ้าไม่ได้ติดตั้งจะต่อท้ายด้วย (ไม่ได้ติดตั้ง) อัตโนมัติ
+    // 🟢 แสดงชื่อแอป: ต่อท้าย (ไม่ได้ติดตั้ง) ทันทีถ้า isInstalled = false
     var name: String {
         let baseName = rawName ?? TargetGameApp.fetchAppName(for: bundleID)
         return isInstalled ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
     }
 
     var icon: UIImage? {
-        UIImage.applicationIcon(forBundleIdentifier: bundleID)
+        isInstalled ? UIImage.applicationIcon(forBundleIdentifier: bundleID) : nil
     }
 
     // MARK: - Initializers
