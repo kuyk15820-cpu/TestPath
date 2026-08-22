@@ -26,11 +26,8 @@ struct TargetGameView: View {
 
                                 Text(app.name)
                                     .font(.headline)
-                                    .foregroundStyle(app.isInstalled ? Color.primary : Color.secondary)
                             }
                         }
-                        .disabled(!app.isInstalled) // 🟢 ปิดการเปิดเข้าไปทำงานเมื่อยังไม่ได้ติดตั้งแอป
-                        .opacity(app.isInstalled ? 1.0 : 0.5) // 🟢 ปรับความจางของแถบรายการหากไม่ได้ติดตั้ง
                     }
                 } header: {
                     Text("เลือกเกม")
