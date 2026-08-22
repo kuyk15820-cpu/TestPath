@@ -1,10 +1,9 @@
 import SwiftUI
 
-struct TargetGameView: View {
-    private let targetApps: [TargetGameApp] = [
-        TargetGameApp(name: "Free Fire", bundleID: "com.dts.freefireth"),
-        TargetGameApp(name: "GitHub", bundleID: "com.github.stormbreaker.prod1")
-    ]
+private let targetApps: [TargetGameApp] = [
+    TargetGameApp(bundleID: "com.dts.freefireth"),
+    TargetGameApp(bundleID: "com.github.stormbreaker.prod1")
+]
 
     var body: some View {
         NavigationStack {
