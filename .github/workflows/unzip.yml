@@ -45,9 +45,27 @@ jobs:
 
             project = Xcodeproj::Project.open(project_path)
             target = project.targets.first
-            source_phase = target.source_build_phase
 
-            # ดึงรายชื่อไฟล์ Swift ทั้งหมดที่มีอยู่ใน Build Phase ปัจจุบันเพื่อป้องกันไฟล์ซ้ำ
+            # 🟢 1. สั่งเพิ่ม Swift Package (MBProgressHUD) เข้า Xcode Project
+            pkg_url = 'https://github.com/jdg/MBProgressHUD.git'
+            
+            pkg_ref = project.root_object.package_references.find { |p| p.repositoryURL == pkg_url }
+            unless pkg_ref
+              pkg_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+              pkg_ref.repositoryURL = pkg_url
+              pkg_ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '1.2.0' }
+              project.root_object.package_references << pkg_ref
+              
+              pkg_product_dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+              pkg_product_dependency.product_name = 'MBProgressHUD'
+              pkg_product_dependency.package = pkg_ref
+              
+              target.package_product_dependencies << pkg_product_dependency
+              puts 'Added Swift Package: MBProgressHUD'
+            end
+
+            # 🟢 2. Sync ไฟล์ .swift เข้า Compile Sources Phase
+            source_phase = target.source_build_phase
             existing_files = source_phase.files_references.compact.map(&:real_path).compact.map(&:to_s)
 
             Dir.glob('**/*.swift').each do |swift_file|
@@ -55,20 +73,16 @@ jobs:
               
               file_abs_path = File.expand_path(swift_file)
               
-              # ข้ามถ้าไฟล์ถูกเพิ่มไว้ใน Build Phase อยู่แล้ว
               if existing_files.include?(file_abs_path)
                 next
               end
 
-              # ค้นหา reference เดิมใน Xcode project ถ้ามี
               file_ref = project.files.find { |f| f.real_path.to_s == file_abs_path }
               
-              # ถ้ายังไม่มี file reference ให้สร้างใหม่
               unless file_ref
                 file_ref = project.main_group.new_file(swift_file)
               end
 
-              # เพิ่มเข้า Compile Sources Phase
               unless source_phase.files_references.include?(file_ref)
                 source_phase.add_file_reference(file_ref)
                 puts \"Added to project: #{swift_file}\"
