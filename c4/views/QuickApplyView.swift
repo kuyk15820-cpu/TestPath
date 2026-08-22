@@ -39,7 +39,8 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            if !patchItems.isEmpty {
+            // 🟢 แสดงปุ่มพร้อมตารางเมื่อมีข้อมูลรายการ และโหลดเสร็จแล้วเท่านั้น
+            if !patchItems.isEmpty && !isLoadingCatalog {
                 bottomActionButtons
             }
         }
@@ -187,6 +188,7 @@ struct QuickApplyView: View {
                     .clipShape(Capsule())
                 }
                 .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
+                .animation(nil, value: isRestoringAll) // 🟢 ปิด Animation การขยับเลื่อนของข้อความ
 
                 Button {
                     openGame()
