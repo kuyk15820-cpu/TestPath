@@ -6,8 +6,37 @@ struct TargetGameApp: Identifiable, Hashable {
     let name: String
     let bundleID: String
 
+    // 🟢 Initializer สำหรับใส่ทั้ง name และ bundleID (รองรับโค้ดเก่า)
+    init(name: String, bundleID: String) {
+        self.name = name
+        self.bundleID = bundleID
+    }
+
+    // 🟢 Initializer แบบใส่แค่ bundleID แล้วดึงชื่อแอปจากระบบให้อัตโนมัติ
+    init(bundleID: String) {
+        self.bundleID = bundleID
+        self.name = TargetGameApp.fetchAppName(for: bundleID)
+    }
+
     var icon: UIImage? {
         UIImage.applicationIcon(forBundleIdentifier: bundleID)
+    }
+
+    // MARK: - Private Helpers
+
+    private static func fetchAppName(for bundleID: String) -> String {
+        // ดึงข้อมูลผ่าน LSApplicationProxy (Private API เดียวกับที่ใช้ดึง Icon)
+        if let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
+           let proxy = proxyClass.perform(Selector(("applicationProxyForIdentifier:")), with: bundleID)?.takeUnretainedValue() as? NSObject {
+            
+            if let localizedName = proxy.perform(Selector(("localizedName")))?.takeUnretainedValue() as? String, !localizedName.isEmpty {
+                return localizedName
+            }
+        }
+
+        // กรณีหาไม่เจอ ให้ตัดคำท้าย Bundle ID มาตั้งเป็นชื่อสำรอง (เช่น com.dts.freefireth -> Freefireth)
+        let fallback = bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
+        return fallback
     }
     
     static func == (lhs: TargetGameApp, rhs: TargetGameApp) -> Bool {
