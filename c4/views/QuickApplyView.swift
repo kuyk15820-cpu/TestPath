@@ -164,7 +164,12 @@ struct QuickApplyView: View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
                 Button {
-                    restoreAllPatches()
+                    // 🟢 ปิด Animation การเปลี่ยน State ของ ปุ่ม Restore ทั้งหมด
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        restoreAllPatches()
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         if isRestoringAll {
@@ -173,10 +178,13 @@ struct QuickApplyView: View {
                             Image(systemName: "arrow.counterclockwise.circle")
                                 .font(.headline)
                         }
+                        
                         Text(isRestoringAll ? "กำลังคืนค่า..." : "Restore ค่าเดิม")
                             .font(.subheadline.bold())
                             .lineLimit(1)
+                            .contentTransition(.identity) // 🟢 ปิด Text Transition Animation
                     }
+                    .transaction { $0.disablesAnimations = true } // 🟢 ปิด Layout Transition ใน HStack
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -188,7 +196,6 @@ struct QuickApplyView: View {
                     .clipShape(Capsule())
                 }
                 .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
-                .animation(nil, value: isRestoringAll) // 🟢 ปิด Animation การขยับเลื่อนของข้อความ
 
                 Button {
                     openGame()
@@ -451,8 +458,13 @@ struct QuickApplyView: View {
 
             let finalCount = count
             await MainActor.run {
-                self.isRestoringAll = false
-                self.statusMessage = nil
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    self.isRestoringAll = false
+                    self.statusMessage = nil
+                }
+                
                 self.actionAlert = PatchStoreAlert(
                     titleKey: "สำเร็จ",
                     messageKey: finalCount > 0 ? "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว" : "ตกลง"
