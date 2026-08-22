@@ -176,7 +176,7 @@ struct QuickApplyView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "gamecontroller.fill")
                             .font(.headline)
-                        Text("เปิดเกม (\(selectedApp.name))")
+                        Text("เปิดเกม")
                             .font(.subheadline.bold())
                             .lineLimit(1)
                     }
@@ -249,13 +249,12 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
-    // 🟢 เหลือการแสดงผล HUD ไว้เฉพาะจุดนี้จุดเดียว
     private func fetchCatalog(force: Bool = false) async {
         if !patchItems.isEmpty && !force { return }
 
         await MainActor.run { 
             isLoadingCatalog = true 
-            HUDHelper.show(message: "กำลังโหลดข้อมูล...")
+            HUDHelper.show(message: nil) // ส่ง nil เพื่อซ่อนข้อความ/subtitle ใน MBHUD
         }
         let startTime = Date()
 
