@@ -174,7 +174,7 @@ struct QuickApplyView: View {
                     openGame()
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "gamecontroller.fill")
+                        Image(systemName: "gamecontroller")
                             .font(.headline)
                         Text("เปิดเกม")
                             .font(.subheadline.bold())
@@ -254,7 +254,7 @@ struct QuickApplyView: View {
 
         await MainActor.run { 
             isLoadingCatalog = true 
-            HUDHelper.show(message: nil) // ส่ง nil เพื่อซ่อนข้อความ/subtitle ใน MBHUD
+            HUDHelper.show(message: "") // ส่ง String ว่างเพื่อไม่ให้แสดงข้อความ
         }
         let startTime = Date()
 
@@ -306,7 +306,8 @@ struct QuickApplyView: View {
 
     // MARK: - Error Message Translator
 
-    private func translatePatchError(_ error: PatchPackageError) -> String {
+    // เติม nonisolated เพื่อให้สามารถเรียกใช้จาก Background Task ได้โดยไม่ต้องผ่าน MainActor
+    private nonisolated func translatePatchError(_ error: PatchPackageError) -> String {
         switch error.localizationKey {
         case "patch.error.invalid_project":
             return "โปรดตรวจสอบชื่อโปรเจกต์, Bundle เป้าหมาย และเนื้อหาใน Workspace"
