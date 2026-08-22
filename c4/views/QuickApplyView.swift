@@ -1,4 +1,40 @@
 import SwiftUI
+import UIKit
+import MBProgressHUD
+
+// MARK: - MBProgressHUD Wrapper
+
+struct HUDHelper {
+    private static var currentHUD: MBProgressHUD?
+
+    @MainActor
+    static func show(message: String) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
+        
+        hide()
+        let hud = MBProgressHUD.showAdded(to: window, animated: true)
+        hud.label.text = message
+        currentHUD = hud
+    }
+
+    @MainActor
+    static func update(message: String) {
+        if let hud = currentHUD {
+            hud.label.text = message
+        } else {
+            show(message: message)
+        }
+    }
+
+    @MainActor
+    static func hide() {
+        if let hud = currentHUD {
+            hud.hide(animated: true)
+            currentHUD = nil
+        }
+    }
+}
 
 // MARK: - Models
 
@@ -25,7 +61,6 @@ struct QuickApplyView: View {
     @State private var isLoadingCatalog = false
     @State private var processingItemID: String?
     @State private var isRestoringAll = false
-    @State private var statusMessage: String?
     @State private var actionAlert: PatchStoreAlert?
     @State private var showSettings = false
     @State private var showLogs = false
@@ -39,7 +74,7 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            // 🟢 แสดงปุ่มพร้อมตารางเมื่อมีข้อมูลรายการ และโหลดเสร็จแล้วเท่านั้น
+            // แสดงปุ่มพร้อมตารางเมื่อมีข้อมูลรายการ และโหลดเสร็จแล้วเท่านั้น
             if !patchItems.isEmpty && !isLoadingCatalog {
                 bottomActionButtons
             }
@@ -47,11 +82,6 @@ struct QuickApplyView: View {
         .navigationTitle(selectedApp.name)
         .navigationBarTitleDisplayMode(.large)
         .tint(AppTheme.accent)
-        .overlay {
-            if isLoadingCatalog {
-                ActivityIndicator(isAnimating: true, style: .medium)
-            }
-        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showLogs = true } label: {
@@ -90,19 +120,12 @@ struct QuickApplyView: View {
             }
         } header: {
             Text("รายการ Patch ที่พร้อมใช้งาน (\(patchItems.count))")
-        } footer: {
-            if let statusMessage {
-                Text(statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.accent)
-            }
         }
     }
 
     @ViewBuilder
     private func patchRow(for item: QuickPatchItem) -> some View {
         let isApplied = activePatches[item.id] ?? false
-        let isProcessingThis = processingItemID == item.id
         let isServerActive = item.active ?? true
 
         Button {
@@ -136,9 +159,7 @@ struct QuickApplyView: View {
                 Spacer()
 
                 ZStack {
-                    if isProcessingThis {
-                        ActivityIndicator(isAnimating: true, style: .medium)
-                    } else if isApplied {
+                    if isApplied {
                         Image(systemName: "checkmark.circle")
                             .font(.title2)
                             .foregroundStyle(AppTheme.accent)
@@ -164,27 +185,16 @@ struct QuickApplyView: View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
                 Button {
-                    // 🟢 ปิด Animation การเปลี่ยน State ของ ปุ่ม Restore ทั้งหมด
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        restoreAllPatches()
-                    }
+                    restoreAllPatches()
                 } label: {
                     HStack(spacing: 6) {
-                        if isRestoringAll {
-                            ActivityIndicator(isAnimating: true, style: .medium)
-                        } else {
-                            Image(systemName: "arrow.counterclockwise.circle")
-                                .font(.headline)
-                        }
+                        Image(systemName: "arrow.counterclockwise.circle")
+                            .font(.headline)
                         
-                        Text(isRestoringAll ? "กำลังคืนค่า..." : "Restore ค่าเดิม")
+                        Text("Restore ค่าเดิม")
                             .font(.subheadline.bold())
                             .lineLimit(1)
-                            .contentTransition(.identity) // 🟢 ปิด Text Transition Animation
                     }
-                    .transaction { $0.disablesAnimations = true } // 🟢 ปิด Layout Transition ใน HStack
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -279,7 +289,10 @@ struct QuickApplyView: View {
     private func fetchCatalog(force: Bool = false) async {
         if !patchItems.isEmpty && !force { return }
 
-        await MainActor.run { isLoadingCatalog = true }
+        await MainActor.run { 
+            isLoadingCatalog = true 
+            HUDHelper.show(message: "กำลังโหลดข้อมูล...")
+        }
         let startTime = Date()
 
         do {
@@ -324,6 +337,7 @@ struct QuickApplyView: View {
 
         await MainActor.run {
             self.isLoadingCatalog = false
+            HUDHelper.hide()
         }
     }
 
@@ -363,12 +377,12 @@ struct QuickApplyView: View {
 
                 if enable {
                     await MainActor.run {
-                        self.statusMessage = "กำลังดาวน์โหลด \(item.title) ล่าสุด..."
+                        HUDHelper.show(message: "กำลังดาวน์โหลด \(item.title)...")
                     }
                     try await self.downloadFile(from: item.downloadUrl, to: applyURL)
 
                     await MainActor.run {
-                        self.statusMessage = "กำลังติดตั้ง \(item.title)..."
+                        HUDHelper.update(message: "กำลังติดตั้ง \(item.title)...")
                     }
 
                     let packageData = try Data(contentsOf: applyURL)
@@ -377,15 +391,15 @@ struct QuickApplyView: View {
                     _ = try DevicePatchService.apply(project: decodedPackage.project)
 
                     await MainActor.run {
+                        HUDHelper.hide()
                         self.activePatches[item.id] = true
-                        self.statusMessage = nil
                         self.processingItemID = nil
                         self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "นำเงื่อนไข Patch ทั้งหมดไปใช้งาน และสำรองไฟล์ต้นฉบับเรียบร้อยแล้ว")
                     }
 
                 } else {
                     await MainActor.run {
-                        self.statusMessage = "กำลัง Restore ค่าเดิม..."
+                        HUDHelper.show(message: "กำลัง Restore ค่าเดิม...")
                     }
 
                     guard FileManager.default.fileExists(atPath: applyURL.path) else {
@@ -402,8 +416,8 @@ struct QuickApplyView: View {
                     try DevicePatchService.restore(receipt: receipt)
 
                     await MainActor.run {
+                        HUDHelper.hide()
                         self.activePatches[item.id] = false
-                        self.statusMessage = nil
                         self.processingItemID = nil
                         self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว")
                     }
@@ -411,7 +425,7 @@ struct QuickApplyView: View {
             } catch let error as PatchPackageError {
                 let message = self.translatePatchError(error)
                 await MainActor.run {
-                    self.statusMessage = nil
+                    HUDHelper.hide()
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
@@ -420,7 +434,7 @@ struct QuickApplyView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.statusMessage = nil
+                    HUDHelper.hide()
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
@@ -433,9 +447,12 @@ struct QuickApplyView: View {
 
     private func restoreAllPatches() {
         isRestoringAll = true
-        statusMessage = "กำลัง Restore ค่าเดิมทั้งหมด..."
 
         Task.detached(priority: .userInitiated) {
+            await MainActor.run {
+                HUDHelper.show(message: "กำลัง Restore ค่าเดิมทั้งหมด...")
+            }
+
             var count = 0
             let currentItems = await self.patchItems
 
@@ -458,13 +475,8 @@ struct QuickApplyView: View {
 
             let finalCount = count
             await MainActor.run {
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    self.isRestoringAll = false
-                    self.statusMessage = nil
-                }
-                
+                HUDHelper.hide()
+                self.isRestoringAll = false
                 self.actionAlert = PatchStoreAlert(
                     titleKey: "สำเร็จ",
                     messageKey: finalCount > 0 ? "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว" : "ตกลง"
