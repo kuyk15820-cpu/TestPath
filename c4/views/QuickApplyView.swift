@@ -327,6 +327,34 @@ struct QuickApplyView: View {
         }
     }
 
+    // MARK: - Error Message Translator
+
+    private func translatePatchError(_ error: PatchPackageError) -> String {
+        switch error.localizationKey {
+        case "patch.error.invalid_project":
+            return "โปรดตรวจสอบชื่อโปรเจกต์, Bundle เป้าหมาย และเนื้อหาใน Workspace"
+        case "patch.error.app_unavailable":
+            if let arg = error.localizationArgument {
+                return "ไม่พบหรือไม่สามารถเปิดแอป Bundle \(arg) ได้ จึงไม่มีการเปลี่ยนแปลงไฟล์ Patch ใดๆ"
+            }
+            return "ไม่พบหรือไม่สามารถเปิดแอปพลิเคชันเป้าหมายได้"
+        case "patch.error.apply":
+            return "ไม่สามารถใช้งาน Patch ได้ ระบบได้ทำการย้อนคืนการเขียนไฟล์ก่อนหน้าทั้งหมดแล้ว"
+        case "patch.error.duplicate_target":
+            return "มีเงื่อนไข (Rules) ซ้ำซ้อนที่ชี้ไปที่ไฟล์แอปเดียวกัน"
+        case "patch.error.invalid_bundle":
+            return "โปรดระบุ App Bundle Identifier ที่ถูกต้อง ไม่ใช่ Container UUID"
+        case "patch.error.password_or_corrupt":
+            return "รหัสผ่านไม่ถูกต้อง หรือไฟล์ Package ถูกดัดแปลง/เสียหาย"
+        case "patch.error.restore":
+            return "ไม่สามารถคืนค่าไฟล์ต้นฉบับได้อย่างปลอดภัย ไม่มีเป้าหมายที่ไม่ได้รับการยืนยันถูกเขียนทับ"
+        case "patch.error.size_limit":
+            return "ไฟล์ Package หรือไฟล์ที่นำมาแทนที่ มีขนาดเกินขีดจำกัดที่รองรับ"
+        default:
+            return error.localizationKey
+        }
+    }
+
     private func handleToggleChange(item: QuickPatchItem, enable: Bool) {
         processingItemID = item.id
 
@@ -389,8 +417,7 @@ struct QuickApplyView: View {
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
-                        messageKey: error.localizationKey,
-                        messageArgument: error.localizationArgument
+                        messageKey: self.translatePatchError(error)
                     )
                 }
             } catch {
