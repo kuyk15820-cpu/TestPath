@@ -5,24 +5,28 @@ struct TargetGameApp: Identifiable, Hashable {
     let id = UUID()
     let name: String
     let bundleID: String
-    let isInstalled: Bool // 🟢 เพิ่มสถานะการติดตั้งแอป
+    let isInstalled: Bool
 
     // Initializer สำหรับใส่ทั้ง name และ bundleID
     init(name: String, bundleID: String) {
         self.bundleID = bundleID
-        self.isInstalled = TargetGameApp.checkIsInstalled(for: bundleID)
         
-        let baseName = name
-        self.name = self.isInstalled ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
+        // 🟢 เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอป ไอคอนจะคืนค่า nil
+        let installed = UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
+        self.isInstalled = installed
+        self.name = installed ? name : "\(name) (ไม่ได้ติดตั้ง)"
     }
 
     // Initializer แบบระบุแค่ bundleID
     init(bundleID: String) {
         self.bundleID = bundleID
-        self.isInstalled = TargetGameApp.checkIsInstalled(for: bundleID)
+        
+        // 🟢 เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอป ไอคอนจะคืนค่า nil
+        let installed = UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
+        self.isInstalled = installed
         
         let baseName = TargetGameApp.fetchAppName(for: bundleID)
-        self.name = self.isInstalled ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
+        self.name = installed ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
     }
 
     var icon: UIImage? {
@@ -31,29 +35,8 @@ struct TargetGameApp: Identifiable, Hashable {
 
     // MARK: - Private Helpers
 
-    // 🟢 ตรวจสอบว่ามีแอปติดตั้งอยู่ในเครื่องหรือไม่
-    private static func checkIsInstalled(for bundleID: String) -> Bool {
-        if let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
-           let proxy = proxyClass.perform(Selector(("applicationProxyForIdentifier:")), with: bundleID)?.takeUnretainedValue() as? NSObject {
-            
-            // ตรวจสอบผ่าน isInstalled ของ LSApplicationProxy
-            if let isInstalledNum = proxy.perform(Selector(("isInstalled")))?.takeUnretainedValue() as? NSNumber {
-                return isInstalledNum.boolValue
-            }
-            
-            // กรณีเป็นแอปที่ซ่อนอยู่ ให้เช็กจาก appState.isInstalled
-            if let appState = proxy.perform(Selector(("appState")))?.takeUnretainedValue() as? NSObject,
-               let isInstalledNum = appState.perform(Selector(("isInstalled")))?.takeUnretainedValue() as? NSNumber {
-                return isInstalledNum.boolValue
-            }
-        }
-        
-        // เช็กสำรองจาก Icon (หากไม่มีแอป จะไม่สามารถดึงไอคอนได้)
-        return UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
-    }
-
     private static func fetchAppName(for bundleID: String) -> String {
-        // 1. กำหนดชื่อแอปที่ถูกต้องไว้ล่วงหน้า
+        // 1. รายชื่อแอปที่กำหนดไว้ล่วงหน้า
         let presetApps: [String: String] = [
             "com.dts.freefireth": "Free Fire",
             "com.dts.freefiremax": "Free Fire MAX"
