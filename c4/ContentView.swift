@@ -30,8 +30,7 @@ struct ContentView: View {
 #endif
     }
 
-        var body: some View {
-        // 🟢 เปลี่ยนจาก QuickApplyView() เป็น TargetGameView() หน้าใหม่แทน
+    var body: some View {
         TargetGameView()
             .tint(AppTheme.accent)
             .imageScale(.small)
@@ -52,7 +51,7 @@ struct ContentView: View {
             }
     }
 
-    // MARK: - Legacy Structure (เก็บไว้ป้องกัน Build Error จากไฟล์อื่น)
+    // MARK: - Legacy Structure
 
     private var compactLayout: some View {
         TabView(selection: tabSelection) {
@@ -115,8 +114,9 @@ struct ContentView: View {
         case .patches:
             PatchProjectsView()
         case .quickApply:
-            QuickApplyView()
-        @unknown default:
+            // 🟢 แก้ไข Error: ส่งค่า selectedApp ให้ QuickApplyView
+            QuickApplyView(selectedApp: TargetGameApp())
+        default:
             EmptyView()
         }
     }
@@ -181,7 +181,7 @@ private extension AppSection {
         case .home: return "tab.home"
         case .patches: return "tab.patches"
         case .quickApply: return "Quick Apply"
-        @unknown default: return ""
+        default: return "" // 🟢 แก้ไข Warning: ครอบคลุม case ทั้งหมดของ enum AppSection
         }
     }
 
@@ -190,7 +190,7 @@ private extension AppSection {
         case .home: return "house.fill"
         case .patches: return "shippingbox.fill"
         case .quickApply: return "bolt.shield.fill"
-        @unknown default: return "circle"
+        default: return "circle" // 🟢 แก้ไข Warning: ครอบคลุม case ทั้งหมดของ enum AppSection
         }
     }
 }
