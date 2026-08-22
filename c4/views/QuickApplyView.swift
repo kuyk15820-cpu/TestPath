@@ -13,7 +13,7 @@ struct QuickPatchItem: Identifiable, Codable {
 // MARK: - QuickApplyView
 
 struct QuickApplyView: View {
-    let selectedApp: TargetGameApp // 🟢 รับค่าแอปที่ถูกเลือกส่งมาจากหน้า TargetGameView
+    let selectedApp: TargetGameApp // รับค่าแอปที่ถูกเลือกส่งมาจากหน้า TargetGameView
 
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
@@ -39,12 +39,11 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            // 🟢 แสดงปุ่มเฉพาะเมื่อมีรายการ Patch (> 0)
             if !patchItems.isEmpty {
                 bottomActionButtons
             }
         }
-        .navigationTitle(selectedApp.name) // 🟢 แสดงชื่อแอปตามที่เลือก
+        .navigationTitle(selectedApp.name)
         .navigationBarTitleDisplayMode(.large)
         .tint(AppTheme.accent)
         .overlay {
@@ -163,7 +162,6 @@ struct QuickApplyView: View {
     private var bottomActionButtons: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
-                // 🟢 ปุ่ม Restore All
                 Button {
                     restoreAllPatches()
                 } label: {
@@ -190,7 +188,6 @@ struct QuickApplyView: View {
                 }
                 .disabled(processingItemID != nil || isRestoringAll || isLoadingCatalog)
 
-                // 🟢 ปุ่ม Open Game (แสดงชื่อตามแอปที่เลือก)
                 Button {
                     openGame()
                 } label: {
@@ -276,22 +273,6 @@ struct QuickApplyView: View {
         await MainActor.run { isLoadingCatalog = true }
         let startTime = Date()
 
-        // 🟢 แก้ไข: ใช้ @MainActor กับ closure อย่างถูกต้อง
-        let finishLoading: @MainActor () -> Void = {
-            let elapsedTime = Date().timeIntervalSince(startTime)
-            let minDuration: TimeInterval = 1.0
-            
-            if elapsedTime < minDuration {
-                let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
-                Task {
-                    try? await Task.sleep(nanoseconds: remainingTime)
-                    self.isLoadingCatalog = false
-                }
-            } else {
-                self.isLoadingCatalog = false
-            }
-        }
-
         do {
             var request = URLRequest(
                 url: catalogURL,
@@ -303,33 +284,37 @@ struct QuickApplyView: View {
 
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                await MainActor.run { finishLoading() }
-                return
-            }
+            if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+                let items = try JSONDecoder().decode([QuickPatchItem].self, from: data)
 
-            let items = try JSONDecoder().decode([QuickPatchItem].self, from: data)
+                await MainActor.run {
+                    self.patchItems = items
 
-            await MainActor.run {
-                self.patchItems = items
+                    for item in items {
+                        if let localURL = self.localPatchURL(for: item.id),
+                           FileManager.default.fileExists(atPath: localURL.path),
+                           let packageData = try? Data(contentsOf: localURL),
+                           let decoded = try? PatchPackageCodec.decode(packageData, password: nil) {
 
-                for item in items {
-                    if let localURL = self.localPatchURL(for: item.id),
-                       FileManager.default.fileExists(atPath: localURL.path),
-                       let packageData = try? Data(contentsOf: localURL),
-                       let decoded = try? PatchPackageCodec.decode(packageData, password: nil) {
-
-                        let hasReceipt = DevicePatchService.latestReceipt(projectID: decoded.project.id) != nil
-                        self.activePatches[item.id] = hasReceipt
+                            let hasReceipt = DevicePatchService.latestReceipt(projectID: decoded.project.id) != nil
+                            self.activePatches[item.id] = hasReceipt
+                        }
                     }
                 }
             }
-            
-            // 🟢 แก้ไข: ลบ await ออก
-            await MainActor.run { finishLoading() }
         } catch {
-            // 🟢 แก้ไข: ลบ await ออก
-            await MainActor.run { finishLoading() }
+            print("Fetch catalog failed: \(error)")
+        }
+
+        let elapsedTime = Date().timeIntervalSince(startTime)
+        let minDuration: TimeInterval = 1.0
+        if elapsedTime < minDuration {
+            let remainingTime = UInt64((minDuration - elapsedTime) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: remainingTime)
+        }
+
+        await MainActor.run {
+            self.isLoadingCatalog = false
         }
     }
 
@@ -415,12 +400,13 @@ struct QuickApplyView: View {
                     }
                 }
             } catch let error as PatchPackageError {
+                let message = self.translatePatchError(error)
                 await MainActor.run {
                     self.statusMessage = nil
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
-                        messageKey: self.translatePatchError(error)
+                        messageKey: message
                     )
                 }
             } catch {
@@ -442,8 +428,9 @@ struct QuickApplyView: View {
 
         Task.detached(priority: .userInitiated) {
             var count = 0
+            let currentItems = await self.patchItems
 
-            for item in await self.patchItems {
+            for item in currentItems {
                 guard let applyURL = await self.localPatchURL(for: item.id),
                       FileManager.default.fileExists(atPath: applyURL.path),
                       let packageData = try? Data(contentsOf: applyURL),
@@ -460,7 +447,6 @@ struct QuickApplyView: View {
                 }
             }
 
-            // 🟢 แก้ไข: ใช้ค่า count ภายในขอบเขต Concurrent ป้องกัน Concurrency Warning
             let finalCount = count
             await MainActor.run {
                 self.isRestoringAll = false
