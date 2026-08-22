@@ -65,7 +65,7 @@ public class PokerAlertView: PokerView, PokerTitleRepresentable, PokerConfirmRep
         horizontalSeparator.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
         
         // Single Confirm Button Setup
-        confirmButton.setTitle("OK", for: .normal)
+        confirmButton.setTitle("ตกลง", for: .normal)
         confirmButton.setTitleColor(.white, for: .normal)
         confirmButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
         confirmButton.layer.cornerRadius = 0
