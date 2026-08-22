@@ -3,40 +3,40 @@ import UIKit
 
 struct TargetGameApp: Identifiable, Hashable {
     let id = UUID()
-    let name: String
+    let rawName: String?
     let bundleID: String
-    let isInstalled: Bool
 
-    // Initializer สำหรับใส่ทั้ง name และ bundleID
-    init(name: String, bundleID: String) {
-        self.bundleID = bundleID
-        
-        // 🟢 เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอป ไอคอนจะคืนค่า nil
-        let installed = UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
-        self.isInstalled = installed
-        self.name = installed ? name : "\(name) (ไม่ได้ติดตั้ง)"
+    // 🟢 ตรวจสอบสถานะการติดตั้งแบบ Dynamic ทุกครั้งที่มีการเรียกใช้
+    var isInstalled: Bool {
+        // เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอปจริงในเครื่อง ไอคอนจะคืนค่า nil
+        return UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
     }
 
-    // Initializer แบบระบุแค่ bundleID
-    init(bundleID: String) {
-        self.bundleID = bundleID
-        
-        // 🟢 เช็กจากไอคอนระบบจริง: ถ้าไม่มีแอป ไอคอนจะคืนค่า nil
-        let installed = UIImage.applicationIcon(forBundleIdentifier: bundleID) != nil
-        self.isInstalled = installed
-        
-        let baseName = TargetGameApp.fetchAppName(for: bundleID)
-        self.name = installed ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
+    // 🟢 แสดงชื่อแอปแบบ Dynamic: ถ้าไม่ได้ติดตั้งจะต่อท้ายด้วย (ไม่ได้ติดตั้ง) อัตโนมัติ
+    var name: String {
+        let baseName = rawName ?? TargetGameApp.fetchAppName(for: bundleID)
+        return isInstalled ? baseName : "\(baseName) (ไม่ได้ติดตั้ง)"
     }
 
     var icon: UIImage? {
         UIImage.applicationIcon(forBundleIdentifier: bundleID)
     }
 
+    // MARK: - Initializers
+
+    init(name: String, bundleID: String) {
+        self.rawName = name
+        self.bundleID = bundleID
+    }
+
+    init(bundleID: String) {
+        self.rawName = nil
+        self.bundleID = bundleID
+    }
+
     // MARK: - Private Helpers
 
     private static func fetchAppName(for bundleID: String) -> String {
-        // 1. รายชื่อแอปที่กำหนดไว้ล่วงหน้า
         let presetApps: [String: String] = [
             "com.dts.freefireth": "Free Fire",
             "com.dts.freefiremax": "Free Fire MAX"
@@ -46,7 +46,6 @@ struct TargetGameApp: Identifiable, Hashable {
             return presetName
         }
 
-        // 2. ดึงจากระบบ iOS (ถ้าเครื่องอนุญาต)
         if let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
            let proxy = proxyClass.perform(Selector(("applicationProxyForIdentifier:")), with: bundleID)?.takeUnretainedValue() as? NSObject {
             
@@ -55,7 +54,6 @@ struct TargetGameApp: Identifiable, Hashable {
             }
         }
 
-        // 3. Fallback ตัดคำจาก Bundle ID
         let fallback = bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
         return fallback
     }
