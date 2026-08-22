@@ -249,6 +249,7 @@ struct QuickApplyView: View {
         try fileManager.moveItem(at: tempURL, to: destinationURL)
     }
 
+    // 🟢 เหลือการแสดงผล HUD ไว้เฉพาะจุดนี้จุดเดียว
     private func fetchCatalog(force: Bool = false) async {
         if !patchItems.isEmpty && !force { return }
 
@@ -339,14 +340,7 @@ struct QuickApplyView: View {
                 }
 
                 if enable {
-                    await MainActor.run {
-                        HUDHelper.show(message: "กำลังดาวน์โหลด \(item.title)...")
-                    }
                     try await self.downloadFile(from: item.downloadUrl, to: applyURL)
-
-                    await MainActor.run {
-                        HUDHelper.update(message: "กำลังติดตั้ง \(item.title)...")
-                    }
 
                     let packageData = try Data(contentsOf: applyURL)
                     let decodedPackage = try PatchPackageCodec.decode(packageData, password: nil)
@@ -354,17 +348,12 @@ struct QuickApplyView: View {
                     _ = try DevicePatchService.apply(project: decodedPackage.project)
 
                     await MainActor.run {
-                        HUDHelper.hide()
                         self.activePatches[item.id] = true
                         self.processingItemID = nil
                         self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "นำเงื่อนไข Patch ทั้งหมดไปใช้งาน และสำรองไฟล์ต้นฉบับเรียบร้อยแล้ว")
                     }
 
                 } else {
-                    await MainActor.run {
-                        HUDHelper.show(message: "กำลัง Restore ค่าเดิม...")
-                    }
-
                     guard FileManager.default.fileExists(atPath: applyURL.path) else {
                         throw PatchPackageError.invalidProject
                     }
@@ -379,7 +368,6 @@ struct QuickApplyView: View {
                     try DevicePatchService.restore(receipt: receipt)
 
                     await MainActor.run {
-                        HUDHelper.hide()
                         self.activePatches[item.id] = false
                         self.processingItemID = nil
                         self.actionAlert = PatchStoreAlert(titleKey: "สำเร็จ", messageKey: "คืนค่าไฟล์ต้นฉบับเรียบร้อยแล้ว")
@@ -388,7 +376,6 @@ struct QuickApplyView: View {
             } catch let error as PatchPackageError {
                 let message = self.translatePatchError(error)
                 await MainActor.run {
-                    HUDHelper.hide()
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
@@ -397,7 +384,6 @@ struct QuickApplyView: View {
                 }
             } catch {
                 await MainActor.run {
-                    HUDHelper.hide()
                     self.processingItemID = nil
                     self.actionAlert = PatchStoreAlert(
                         titleKey: "ล้มเหลว",
@@ -412,10 +398,6 @@ struct QuickApplyView: View {
         isRestoringAll = true
 
         Task.detached(priority: .userInitiated) {
-            await MainActor.run {
-                HUDHelper.show(message: "กำลัง Restore ค่าเดิมทั้งหมด...")
-            }
-
             var count = 0
             let currentItems = await self.patchItems
 
@@ -438,7 +420,6 @@ struct QuickApplyView: View {
 
             let finalCount = count
             await MainActor.run {
-                HUDHelper.hide()
                 self.isRestoringAll = false
                 self.actionAlert = PatchStoreAlert(
                     titleKey: "สำเร็จ",
