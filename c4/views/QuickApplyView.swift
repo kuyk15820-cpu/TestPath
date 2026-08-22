@@ -1,40 +1,4 @@
 import SwiftUI
-import UIKit
-import MBProgressHUD
-
-// MARK: - MBProgressHUD Wrapper
-
-struct HUDHelper {
-    private static var currentHUD: MBProgressHUD?
-
-    @MainActor
-    static func show(message: String) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
-        
-        hide()
-        let hud = MBProgressHUD.showAdded(to: window, animated: true)
-        hud.label.text = message
-        currentHUD = hud
-    }
-
-    @MainActor
-    static func update(message: String) {
-        if let hud = currentHUD {
-            hud.label.text = message
-        } else {
-            show(message: message)
-        }
-    }
-
-    @MainActor
-    static func hide() {
-        if let hud = currentHUD {
-            hud.hide(animated: true)
-            currentHUD = nil
-        }
-    }
-}
 
 // MARK: - Models
 
@@ -49,7 +13,7 @@ struct QuickPatchItem: Identifiable, Codable {
 // MARK: - QuickApplyView
 
 struct QuickApplyView: View {
-    let selectedApp: TargetGameApp // รับค่าแอปที่ถูกเลือกส่งมาจากหน้า TargetGameView
+    let selectedApp: TargetGameApp
 
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
@@ -74,7 +38,6 @@ struct QuickApplyView: View {
             }
             .listStyle(.plain)
             
-            // แสดงปุ่มพร้อมตารางเมื่อมีข้อมูลรายการ และโหลดเสร็จแล้วเท่านั้น
             if !patchItems.isEmpty && !isLoadingCatalog {
                 bottomActionButtons
             }
