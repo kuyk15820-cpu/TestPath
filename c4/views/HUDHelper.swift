@@ -11,7 +11,7 @@ struct HUDHelper {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
         
-        // เคลียร์ตัวเก่าทันทีหากเปิดค้างไว้
+        // หากมี HUD ตัวเก่าเปิดค้างอยู่ ให้สั่ง hide ทันทีโดยไม่ต้องหน่วงเวลา
         if let existingHUD = currentHUD {
             existingHUD.hide(animated: false)
             currentHUD = nil
@@ -20,17 +20,17 @@ struct HUDHelper {
         let hud = MBProgressHUD.showAdded(to: window, animated: true)
         hud.mode = .indeterminate
         
-        // 🟢 กำหนด Background Style แบบถอดมาจาก Objective-C
-        hud.backgroundView.style = MBProgressHUDBackgroundStyle.solidColor // หรือใช้แบบสั้น .solidColor
+        // กำหนด Background Style
+        hud.backgroundView.style = MBProgressHUDBackgroundStyle.solidColor
         hud.backgroundView.color = UIColor(white: 0.0, alpha: 0.4)
         
-        // 🟢 กำหนด Bezel และ Content Style ให้ตรงตาม Objective-C
+        // กำหนด Bezel และ Content Style
         hud.bezelView.blurEffectStyle = .dark
         hud.contentColor = .white
         hud.label.text = message
         hud.label.textColor = .lightGray
         
-        // 🟢 ตั้งเวลาแสดงผลขั้นต่ำ 1 วินาที
+        // ตั้งค่า minShowTime ให้เป็น 1 วินาที
         hud.minShowTime = 1.0
         
         showTime = Date()
@@ -50,23 +50,24 @@ struct HUDHelper {
     static func hide() {
         guard let hud = currentHUD else { return }
         
-        // คำนวณเวลาที่ผ่านไป หากยังไม่ครบ 1 วินาที ให้หน่วงเวลาสั่ง hide ออกไปจนกว่าจะครบ 1 วินาที
-        let elapsedTime = Date().timeIntervalSince(showTime ?? Date())
+        let targetHUD = hud
+        let startTime = showTime ?? Date()
+        
+        // เคลียร์ Reference ทันทีเพื่อป้องกันการสั่ง hide ซ้ำ
+        currentHUD = nil
+        showTime = nil
+        
+        let elapsedTime = Date().timeIntervalSince(startTime)
         let minDuration: TimeInterval = 1.0
         
+        // คำนวณเวลาถ้ายังไม่ถึง 1 วินาที ให้หน่วงเวลาก่อนสั่งซ่อน HUD
         if elapsedTime < minDuration {
             let delay = minDuration - elapsedTime
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                hud.hide(animated: true)
-                if currentHUD == hud {
-                    currentHUD = nil
-                    showTime = nil
-                }
+                targetHUD.hide(animated: true)
             }
         } else {
-            hud.hide(animated: true)
-            currentHUD = nil
-            showTime = nil
+            targetHUD.hide(animated: true)
         }
     }
 }
