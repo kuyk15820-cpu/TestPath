@@ -1,47 +1,59 @@
 import SwiftUI
+import UIKit
 
-struct TargetGameView: View { // 🟢 เพิ่มตัวประกาศ struct ที่หายไป
-    private let targetApps: [TargetGameApp] = [
-        TargetGameApp(bundleID: "com.dts.freefireth"),
-        TargetGameApp(bundleID: "com.dts.freefiremax")
-    ]
+struct TargetGameApp: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let bundleID: String
 
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(targetApps) { app in
-                        // 🟢 ส่งค่า selectedApp ไปให้ QuickApplyView
-                        NavigationLink(destination: QuickApplyView(selectedApp: app)) {
-                            HStack(spacing: 12) {
-                                if let icon = app.icon {
-                                    Image(uiImage: icon)
-                                        .resizable()
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                } else {
-                                    Image(systemName: "app.window.checkmark")
-                                        .font(.title2)
-                                        .foregroundStyle(Color.primary)
-                                }
-
-                                Text(app.name)
-                                    .font(.headline)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("เลือกเกม")
-                }
-            }
-            .listStyle(.plain)
-            .navigationTitle("หน้าแรก")
-            .navigationBarTitleDisplayMode(.large)
-        }
+    // Initializer สำหรับใส่ทั้ง name และ bundleID
+    init(name: String, bundleID: String) {
+        self.name = name
+        self.bundleID = bundleID
     }
-}
 
-#Preview {
-    TargetGameView()
-        .environmentObject(AppState())
+    // Initializer แบบระบุแค่ bundleID
+    init(bundleID: String) {
+        self.bundleID = bundleID
+        self.name = TargetGameApp.fetchAppName(for: bundleID)
+    }
+
+    var icon: UIImage? {
+        UIImage.applicationIcon(forBundleIdentifier: bundleID)
+    }
+
+    // MARK: - Private Helpers
+
+    private static func fetchAppName(for bundleID: String) -> String {
+        // 🟢 1. กำหนดชื่อแอปที่ถูกต้องไว้ล่วงหน้า
+        let presetApps: [String: String] = [
+            "com.dts.freefireth": "Free Fire",
+            "com.dts.freefiremax": "Free Fire MAX"            
+        ]
+        
+        if let presetName = presetApps[bundleID] {
+            return presetName
+        }
+
+        // 🟢 2. ดึงจากระบบ iOS (ถ้าเครื่องอนุญาต)
+        if let proxyClass = NSClassFromString("LSApplicationProxy") as? NSObject.Type,
+           let proxy = proxyClass.perform(Selector(("applicationProxyForIdentifier:")), with: bundleID)?.takeUnretainedValue() as? NSObject {
+            
+            if let localizedName = proxy.perform(Selector(("localizedName")))?.takeUnretainedValue() as? String, !localizedName.isEmpty {
+                return localizedName
+            }
+        }
+
+        // 🟢 3. Fallback ตัดคำจาก Bundle ID
+        let fallback = bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
+        return fallback
+    }
+    
+    static func == (lhs: TargetGameApp, rhs: TargetGameApp) -> Bool {
+        lhs.bundleID == rhs.bundleID
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(bundleID)
+    }
 }
