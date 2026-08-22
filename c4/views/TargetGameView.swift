@@ -1,9 +1,10 @@
 import SwiftUI
 
-private let targetApps: [TargetGameApp] = [
-    TargetGameApp(bundleID: "com.dts.freefireth"),
-    TargetGameApp(bundleID: "com.github.stormbreaker.prod1")
-]
+struct TargetGameView: View { // 🟢 เพิ่มตัวประกาศ struct ที่หายไป
+    private let targetApps: [TargetGameApp] = [
+        TargetGameApp(bundleID: "com.dts.freefireth"),
+        TargetGameApp(bundleID: "com.dts.freefiremax")
+    ]
 
     var body: some View {
         NavigationStack {
